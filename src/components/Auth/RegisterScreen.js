@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Plus, ChevronRight } from 'lucide-react';
+import { Plus } from 'lucide-react';
 
 const RegisterScreen = ({ data, setData, setCurrentView }) => {
   const [step, setStep] = useState(1);

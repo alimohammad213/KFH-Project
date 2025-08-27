@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { AlertCircle, Clock, Settings } from 'lucide-react';
 import { formatDateTime } from '../../utils/helpers';
+import { getEscalationTarget, canEscalate, getRoleName } from '../../utils/helpers';
 
 const EscalationSettings = ({ data, setData, pendingEscalation }) => {
   const [escalationHours, setEscalationHours] = useState(72);
@@ -22,7 +23,6 @@ const EscalationSettings = ({ data, setData, pendingEscalation }) => {
     pendingItem: "border border-red-200 rounded-lg p-4 bg-red-50",
     pendingHeader: "flex justify-between items-start",
     pendingInfo: "space-y-2",
-    pendingTitle: "font-semibold",
     pendingMeta: "text-sm text-gray-600",
     pendingAlert: "text-sm text-red-600 font-medium",
     escalateBtn: "bg-red-600 text-white px-3 py-1 rounded text-sm hover:bg-red-700",
@@ -32,29 +32,44 @@ const EscalationSettings = ({ data, setData, pendingEscalation }) => {
     statLabel: "text-gray-600 text-sm"
   };
 
-  const handleEscalation = (complaintId) => {
-    setData(prev => ({
-      ...prev,
-      complaints: prev.complaints.map(complaint => {
-        if (complaint.id === complaintId) {
-          return {
-            ...complaint,
-            escalated: true,
+  // src/components/Admin/EscalationSettings.js
+
+
+const handleEscalation = (complaintId) => {
+  const complaint = data.complaints.find(c => c.id === complaintId);
+  
+  if (!canEscalate(complaint, data)) {
+    alert('هذه الشكوى وصلت لأعلى مستوى ولا يمكن تصعيدها أكثر');
+    return;
+  }
+  
+  const escalationTarget = getEscalationTarget(complaint, data);
+  
+  setData(prev => ({
+    ...prev,
+    complaints: prev.complaints.map(c => {
+      if (c.id === complaintId) {
+        return {
+          ...c,
+          escalated: true,
+          status: 'متصعدة',
+          assignedTo: escalationTarget.id,
+          escalationLevel: (c.escalationLevel || 1) + 1,
+          updatedAt: new Date().toISOString(),
+          timeline: [...c.timeline, {
             status: 'متصعدة',
-            updatedAt: new Date().toISOString(),
-            timeline: [...complaint.timeline, {
-              status: 'متصعدة',
-              timestamp: new Date().toISOString(),
-              note: 'تم تصعيد الشكوى تلقائياً بسبب تجاوز المهلة الزمنية',
-              updatedBy: 'النظام'
-            }]
-          };
-        }
-        return complaint;
-      })
-    }));
-    alert('تم تصعيد الشكوى بنجاح');
-  };
+            timestamp: new Date().toISOString(),
+            note: `تم تصعيد الشكوى إلى: ${escalationTarget.name} (${getRoleName(escalationTarget.role)})`,
+            updatedBy: 'النظام'
+          }]
+        };
+      }
+      return c;
+    })
+  }));
+  
+  alert(`تم تصعيد الشكوى إلى: ${escalationTarget.name}`);
+};
 
   const escalateAll = () => {
     if (window.confirm(`هل تريد تصعيد جميع الشكاوى المتأخرة (${pendingEscalation.length} شكوى)؟`)) {

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Search, Filter, Eye, Edit, FileText } from 'lucide-react';
+import { Search, Eye, Edit, FileText } from 'lucide-react';
 import { getStatusColor, formatDate } from '../../utils/helpers';
 
 const ComplaintsManagement = ({ data, setData, setSelectedComplaint }) => {

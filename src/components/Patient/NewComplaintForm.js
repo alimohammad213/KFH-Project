@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Upload, AlertCircle } from 'lucide-react';
+import { autoAssignComplaintWithLevel, getRoleName } from '../../utils/helpers';
 
 const NewComplaintForm = ({ currentUser, data, setData, setActiveTab }) => {
   const [formData, setFormData] = useState({
@@ -57,18 +58,19 @@ const NewComplaintForm = ({ currentUser, data, setData, setActiveTab }) => {
         note: 'تم استلام الشكوى'
       }],
       assignedTo: null,
-      escalated: false
+      escalated: false,
+      escalationLevel: 1
     };
 
-    // Auto-assign to available staff
-    const availableStaff = data.staff.filter(s => s.department === formData.department);
-    if (availableStaff.length > 0) {
-      const assignedStaff = availableStaff[Math.floor(Math.random() * availableStaff.length)];
+    const assignedStaff = autoAssignComplaintWithLevel(newComplaint, data.staff, 1);
+    
+    if (assignedStaff) {
       newComplaint.assignedTo = assignedStaff.id;
+      newComplaint.status = 'تحت المراجعة';
       newComplaint.timeline.push({
         status: 'تحت المراجعة',
         timestamp: new Date().toISOString(),
-        note: `تم تعيين الشكوى للموظف: ${assignedStaff.name}`
+        note: `تم تعيين الشكوى للموظف: ${assignedStaff.name} (${getRoleName(assignedStaff.role)})`
       });
     }
 
@@ -97,9 +99,14 @@ const NewComplaintForm = ({ currentUser, data, setData, setActiveTab }) => {
                 required
               >
                 <option value="">اختر القسم</option>
-                {data.departments.map(dept => (
-                  <option key={dept} value={dept}>{dept}</option>
-                ))}
+                {data.departments.map(dept => {
+                  const availableStaff = data.staff.filter(s => s.department === dept);
+                  return (
+                    <option key={dept} value={dept}>
+                      {dept} ({availableStaff.length} موظف متاح)
+                    </option>
+                  );
+                })}
               </select>
             </div>
 
