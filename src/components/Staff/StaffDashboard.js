@@ -2,10 +2,13 @@ import React, { useState } from 'react';
 import { Users, LogOut, FileText, CheckCircle, Clock, AlertCircle, Eye } from 'lucide-react';
 import ComplaintDetails from './ComplaintDetails';
 import { getStatusColor } from '../../utils/helpers';
+import { useAppContext } from '../../App'; // استيراد الـ Context
 
-const StaffDashboard = ({ currentUser, logout, data, setData }) => {
+const StaffDashboard = () => {
   const [selectedComplaint, setSelectedComplaint] = useState(null);
-  const staffComplaints = data.complaints.filter(c => c.assignedTo === currentUser.id);
+  
+  // استخدام البيانات من الـ Context
+  const { currentUser, logout, staffComplaints, updateComplaint } = useAppContext();
 
   const staffStyles = {
     container: "min-h-screen bg-gray-50",
@@ -47,27 +50,31 @@ const StaffDashboard = ({ currentUser, logout, data, setData }) => {
   };
 
   const updateComplaintStatus = (complaintId, newStatus, note = '') => {
-    setData(prev => ({
-      ...prev,
-      complaints: prev.complaints.map(complaint => {
-        if (complaint.id === complaintId) {
-          const updatedComplaint = {
-            ...complaint,
-            status: newStatus,
-            updatedAt: new Date().toISOString(),
-            timeline: [...complaint.timeline, {
-              status: newStatus,
-              timestamp: new Date().toISOString(),
-              note: note || `تم تحديث الحالة إلى: ${newStatus}`,
-              updatedBy: currentUser.name
-            }]
-          };
-          return updatedComplaint;
-        }
-        return complaint;
-      })
-    }));
+    updateComplaint(complaintId, {
+      status: newStatus,
+      timeline: [...(staffComplaints.find(c => c.id === complaintId)?.timeline || []), {
+        status: newStatus,
+        timestamp: new Date().toISOString(),
+        note: note || `تم تحديث الحالة إلى: ${newStatus}`,
+        updatedBy: currentUser.name
+      }]
+    });
   };
+
+  // التحقق من وجود المستخدم والصلاحيات
+  if (!currentUser || !['staff', 'supervisor', 'manager'].includes(currentUser.role)) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <h2 className="text-xl font-bold text-gray-900 mb-2">غير مصرح لك</h2>
+          <p className="text-gray-600 mb-4">يجب أن تكون موظف للوصول لهذه الصفحة</p>
+          <button onClick={logout} className="btn-primary">
+            تسجيل الدخول
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   if (selectedComplaint) {
     return (
@@ -177,10 +184,15 @@ const StaffDashboard = ({ currentUser, logout, data, setData }) => {
                 <div className={staffStyles.emptyState}>
                   <FileText className={staffStyles.emptyIcon} />
                   <p className={staffStyles.emptyText}>لا توجد شكاوى معينة لك حالياً</p>
+                  <p className="text-sm text-gray-400 mt-2">
+                    سيتم تعيين الشكاوى الجديدة تلقائياً حسب قسمك
+                  </p>
                 </div>
               ) : (
                 <div className={staffStyles.complaintsList}>
-                  {staffComplaints.map(complaint => (
+                  {staffComplaints
+                    .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+                    .map(complaint => (
                     <div key={complaint.id} className={staffStyles.complaintItem}>
                       <div className={staffStyles.complaintHeader}>
                         <div className={staffStyles.complaintInfo}>
@@ -196,15 +208,20 @@ const StaffDashboard = ({ currentUser, logout, data, setData }) => {
                             <p><strong>التاريخ:</strong> {new Date(complaint.createdAt).toLocaleDateString('ar-SA')}</p>
                           </div>
                           <p className={staffStyles.complaintDesc}>
-                            {complaint.description.substring(0, 150)}...
+                            {complaint.description.length > 150 
+                              ? complaint.description.substring(0, 150) + '...'
+                              : complaint.description
+                            }
                           </p>
-                          <button
-                            onClick={() => setSelectedComplaint(complaint)}
-                            className={staffStyles.viewBtn}
-                          >
-                            <Eye className="w-4 h-4 inline ml-1" />
-                            عرض التفاصيل
-                          </button>
+                          <div className="mt-3">
+                            <button
+                              onClick={() => setSelectedComplaint(complaint)}
+                              className={staffStyles.viewBtn}
+                            >
+                              <Eye className="w-4 h-4 inline ml-1" />
+                              عرض التفاصيل
+                            </button>
+                          </div>
                         </div>
                       </div>
                     </div>

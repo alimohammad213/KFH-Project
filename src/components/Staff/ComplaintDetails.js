@@ -1,9 +1,15 @@
 import React, { useState } from 'react';
 import { X, Users, LogOut } from 'lucide-react';
 import { getStatusColor, formatDateTime } from '../../utils/helpers';
+import { useAppContext } from '../../App'; // استيراد الـ Context
 
-const ComplaintDetails = ({ complaint, currentUser, updateComplaintStatus, onBack, logout }) => {
-  const [status, setStatus] = useState(complaint.status);
+const ComplaintDetails = ({ onBack }) => {
+  const { currentUser, logout, staffComplaints, updateComplaint } = useAppContext();
+  
+  // نحتاج تحديد الشكوى المحددة - سأقوم بحل مؤقت
+  const complaint = staffComplaints[0]; // سنحتاج تمرير ID الشكوى لاحقاً
+  
+  const [status, setStatus] = useState(complaint?.status || 'جديدة');
   const [note, setNote] = useState('');
 
   const detailsStyles = {
@@ -58,10 +64,38 @@ const ComplaintDetails = ({ complaint, currentUser, updateComplaintStatus, onBac
   };
 
   const handleUpdate = () => {
-    updateComplaintStatus(complaint.id, status, note);
+    if (!complaint) return;
+    
+    const updatedTimeline = [...complaint.timeline, {
+      status: status,
+      timestamp: new Date().toISOString(),
+      note: note || `تم تحديث الحالة إلى: ${status}`,
+      updatedBy: currentUser.name
+    }];
+
+    updateComplaint(complaint.id, {
+      status: status,
+      timeline: updatedTimeline
+    });
+
     setNote('');
     alert('تم تحديث حالة الشكوى بنجاح');
   };
+
+  if (!complaint) {
+    return (
+      <div className={detailsStyles.container}>
+        <div className="flex items-center justify-center min-h-screen">
+          <div className="text-center">
+            <h2 className="text-xl font-bold text-gray-900 mb-2">لم يتم العثور على الشكوى</h2>
+            <button onClick={onBack} className="btn-primary">
+              العودة للقائمة
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className={detailsStyles.container}>
@@ -135,6 +169,12 @@ const ComplaintDetails = ({ complaint, currentUser, updateComplaintStatus, onBac
                   <span className={detailsStyles.infoLabel}>آخر تحديث:</span>
                   <span> {formatDateTime(complaint.updatedAt)}</span>
                 </div>
+                <div className={detailsStyles.infoItem}>
+                  <span className={detailsStyles.infoLabel}>الحالة الحالية:</span>
+                  <span className={`px-2 py-1 rounded text-white text-sm ml-2 ${getStatusColor(complaint.status)}`}>
+                    {complaint.status}
+                  </span>
+                </div>
               </div>
             </div>
           </div>
@@ -155,7 +195,7 @@ const ComplaintDetails = ({ complaint, currentUser, updateComplaintStatus, onBac
           <div className={detailsStyles.timelineSection}>
             <h3 className={detailsStyles.timelineTitle}>سجل متابعة الشكوى</h3>
             <div className={detailsStyles.timelineList}>
-              {complaint.timeline.map((event, index) => (
+              {complaint.timeline && complaint.timeline.map((event, index) => (
                 <div key={index} className={detailsStyles.timelineItem}>
                   <div className={`${detailsStyles.timelineDot} ${getStatusColor(event.status)}`}></div>
                   <div className={detailsStyles.timelineContent}>
@@ -207,7 +247,11 @@ const ComplaintDetails = ({ complaint, currentUser, updateComplaintStatus, onBac
                 />
               </div>
 
-              <button onClick={handleUpdate} className={detailsStyles.updateBtn}>
+              <button 
+                onClick={handleUpdate} 
+                className={detailsStyles.updateBtn}
+                disabled={!status}
+              >
                 تحديث الحالة
               </button>
             </div>

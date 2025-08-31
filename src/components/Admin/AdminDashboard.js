@@ -5,11 +5,15 @@ import DepartmentManagement from './DepartmentManagement';
 import ComplaintsManagement from './ComplaintsManagement';
 import EscalationSettings from './EscalationSettings';
 import SystemLogs from './SystemLogs';
+import { useAppContext } from '../../App'; // استيراد الـ Context
 
-const AdminDashboard = ({ currentUser, logout, data, setData }) => {
+const AdminDashboard = () => {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [selectedComplaint, setSelectedComplaint] = useState(null);
 
+  // استخدام البيانات من الـ Context
+  const { currentUser, logout, data } = useAppContext();
+  
   const allComplaints = data.complaints;
   const pendingEscalation = allComplaints.filter(c => {
     const hoursSinceCreated = (new Date() - new Date(c.createdAt)) / (1000 * 60 * 60);
@@ -68,6 +72,21 @@ const AdminDashboard = ({ currentUser, logout, data, setData }) => {
     alertDesc: "text-red-700",
     alertBtn: "btn-danger mr-auto"
   };
+
+  // التحقق من صلاحية الوصول
+  if (!currentUser || currentUser.role !== 'admin') {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <h2 className="text-xl font-bold text-gray-900 mb-2">غير مصرح لك</h2>
+          <p className="text-gray-600 mb-4">يجب أن تكون مدير للوصول لهذه الصفحة</p>
+          <button onClick={logout} className="btn-primary">
+            تسجيل الدخول
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   const Dashboard = () => (
     <div className="fade-in">
@@ -184,127 +203,123 @@ const AdminDashboard = ({ currentUser, logout, data, setData }) => {
       </div>
 
       {/* Escalation Alert */}
-     {pendingEscalation.length > 0 && (
-       <div className={adminStyles.alertCard}>
-         <div className={adminStyles.alertContent}>
-           <AlertCircle className={adminStyles.alertIcon} />
-           <div className={adminStyles.alertText}>
-             <h3 className={adminStyles.alertTitle}>تنبيه: شكاوى تحتاج تصعيد</h3>
-             <p className={adminStyles.alertDesc}>
-               يوجد {pendingEscalation.length} شكوى تجاوزت المهلة الزمنية وتحتاج للتصعيد
-             </p>
-           </div>
-           <button
-             onClick={() => setActiveTab('escalation')}
-             className={adminStyles.alertBtn}
-           >
-             عرض التفاصيل
-           </button>
-         </div>
-       </div>
-     )}
-   </div>
- );
+      {pendingEscalation.length > 0 && (
+        <div className={adminStyles.alertCard}>
+          <div className={adminStyles.alertContent}>
+            <AlertCircle className={adminStyles.alertIcon} />
+            <div className={adminStyles.alertText}>
+              <h3 className={adminStyles.alertTitle}>تنبيه: شكاوى تحتاج تصعيد</h3>
+              <p className={adminStyles.alertDesc}>
+                يوجد {pendingEscalation.length} شكوى تجاوزت المهلة الزمنية وتحتاج للتصعيد
+              </p>
+            </div>
+            <button
+              onClick={() => setActiveTab('escalation')}
+              className={adminStyles.alertBtn}
+            >
+              عرض التفاصيل
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
 
- return (
-   <div className={adminStyles.container}>
-     {/* Header */}
-     <div className={adminStyles.header}>
-       <div className={adminStyles.headerContent}>
-         <div className={adminStyles.headerInner}>
-           <div className={adminStyles.headerLeft}>
-             <Settings className={adminStyles.logo} />
-             <h1 className={adminStyles.title}>نظام الشكاوى - الإدارة</h1>
-           </div>
-           <div className={adminStyles.headerRight}>
-             {pendingEscalation.length > 0 && (
-               <div className={adminStyles.notification}>
-                 <Bell className={adminStyles.notificationIcon} />
-                 <span className={adminStyles.notificationText}>
-                   {pendingEscalation.length} شكوى تحتاج تصعيد
-                 </span>
-               </div>
-             )}
-             <span className={adminStyles.userName}>مرحباً، {currentUser.name}</span>
-             <button onClick={logout} className={adminStyles.logoutBtn}>
-               <LogOut className="w-5 h-5 ml-1" />
-               خروج
-             </button>
-           </div>
-         </div>
-       </div>
-     </div>
+  return (
+    <div className={adminStyles.container}>
+      {/* Header */}
+      <div className={adminStyles.header}>
+        <div className={adminStyles.headerContent}>
+          <div className={adminStyles.headerInner}>
+            <div className={adminStyles.headerLeft}>
+              <Settings className={adminStyles.logo} />
+              <h1 className={adminStyles.title}>نظام الشكاوى - الإدارة</h1>
+            </div>
+            <div className={adminStyles.headerRight}>
+              {pendingEscalation.length > 0 && (
+                <div className={adminStyles.notification}>
+                  <Bell className={adminStyles.notificationIcon} />
+                  <span className={adminStyles.notificationText}>
+                    {pendingEscalation.length} شكوى تحتاج تصعيد
+                  </span>
+                </div>
+              )}
+              <span className={adminStyles.userName}>مرحباً، {currentUser.name}</span>
+              <button onClick={logout} className={adminStyles.logoutBtn}>
+                <LogOut className="w-5 h-5 ml-1" />
+                خروج
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
 
-     {/* Navigation */}
-     <div className={adminStyles.nav}>
-       <div className={adminStyles.navContent}>
-         <nav className={adminStyles.navInner}>
-           {[
-             { key: 'dashboard', label: 'الرئيسية', icon: Home },
-             { key: 'complaints', label: 'إدارة الشكاوى', icon: FileText },
-             { key: 'staff', label: 'إدارة الموظفين', icon: Users },
-             { key: 'departments', label: 'إدارة الأقسام', icon: Settings },
-             { key: 'escalation', label: 'التصعيد', icon: AlertCircle },
-             { key: 'logs', label: 'سجل العمليات', icon: Clock }
-           ].map(tab => (
-             <button
-               key={tab.key}
-               onClick={() => setActiveTab(tab.key)}
-               className={`${adminStyles.navTab} ${
-                 activeTab === tab.key ? 'active' : 'inactive'
-               }`}
-             >
-               <tab.icon className="w-5 h-5 ml-2" />
-               {tab.label}
-               {tab.key === 'escalation' && pendingEscalation.length > 0 && (
-                 <span className={adminStyles.badge}>
-                   {pendingEscalation.length}
-                 </span>
-               )}
-             </button>
-           ))}
-         </nav>
-       </div>
-     </div>
+      {/* Navigation */}
+      <div className={adminStyles.nav}>
+        <div className={adminStyles.navContent}>
+          <nav className={adminStyles.navInner}>
+            {[
+              { key: 'dashboard', label: 'الرئيسية', icon: Home },
+              { key: 'complaints', label: 'إدارة الشكاوى', icon: FileText },
+              { key: 'staff', label: 'إدارة الموظفين', icon: Users },
+              { key: 'departments', label: 'إدارة الأقسام', icon: Settings },
+              { key: 'escalation', label: 'التصعيد', icon: AlertCircle },
+              { key: 'logs', label: 'سجل العمليات', icon: Clock }
+            ].map(tab => (
+              <button
+                key={tab.key}
+                onClick={() => setActiveTab(tab.key)}
+                className={`${adminStyles.navTab} ${
+                  activeTab === tab.key ? 'active' : 'inactive'
+                }`}
+              >
+                <tab.icon className="w-5 h-5 ml-2" />
+                {tab.label}
+                {tab.key === 'escalation' && pendingEscalation.length > 0 && (
+                  <span className={adminStyles.badge}>
+                    {pendingEscalation.length}
+                  </span>
+                )}
+              </button>
+            ))}
+          </nav>
+        </div>
+      </div>
 
-     {/* Content */}
-     <div className={adminStyles.content}>
-       {selectedComplaint ? (
-         <div className="mb-4">
-           <button
-             onClick={() => setSelectedComplaint(null)}
-             className="flex items-center text-blue-600 hover:text-blue-800 mb-4"
-           >
-             <ChevronRight className="w-5 h-5 ml-1" />
-             العودة للقائمة
-           </button>
-           {/* Complaint Details Component would go here */}
-         </div>
-       ) : (
-         <>
-           {activeTab === 'dashboard' && <Dashboard />}
-           {activeTab === 'complaints' && (
-             <ComplaintsManagement 
-               data={data} 
-               setData={setData} 
-               setSelectedComplaint={setSelectedComplaint}
-             />
-           )}
-           {activeTab === 'staff' && <StaffManagement data={data} setData={setData} />}
-           {activeTab === 'departments' && <DepartmentManagement data={data} setData={setData} />}
-           {activeTab === 'escalation' && (
-             <EscalationSettings 
-               data={data} 
-               setData={setData} 
-               pendingEscalation={pendingEscalation}
-             />
-           )}
-           {activeTab === 'logs' && <SystemLogs data={data} />}
-         </>
-       )}
-     </div>
-   </div>
- );
+      {/* Content */}
+      <div className={adminStyles.content}>
+        {selectedComplaint ? (
+          <div className="mb-4">
+            <button
+              onClick={() => setSelectedComplaint(null)}
+              className="flex items-center text-blue-600 hover:text-blue-800 mb-4"
+            >
+              <ChevronRight className="w-5 h-5 ml-1" />
+              العودة للقائمة
+            </button>
+            {/* Complaint Details Component would go here */}
+          </div>
+        ) : (
+          <>
+            {activeTab === 'dashboard' && <Dashboard />}
+            {activeTab === 'complaints' && (
+              <ComplaintsManagement 
+                setSelectedComplaint={setSelectedComplaint}
+              />
+            )}
+            {activeTab === 'staff' && <StaffManagement />}
+            {activeTab === 'departments' && <DepartmentManagement />}
+            {activeTab === 'escalation' && (
+              <EscalationSettings 
+                pendingEscalation={pendingEscalation}
+              />
+            )}
+            {activeTab === 'logs' && <SystemLogs />}
+          </>
+        )}
+      </div>
+    </div>
+  );
 };
 
 export default AdminDashboard;

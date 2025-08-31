@@ -1,13 +1,17 @@
 import React, { useState } from 'react';
 import { Plus } from 'lucide-react';
+import { useAppContext } from '../../App'; // استيراد الـ Context
 
-const RegisterScreen = ({ data, setData, setCurrentView }) => {
+const RegisterScreen = () => {
   const [step, setStep] = useState(1);
   const [formData, setFormData] = useState({
     name: '', nationalId: '', phone: '', password: '', confirmPassword: '', otp: ''
   });
   const [errors, setErrors] = useState({});
   const [generatedOTP, setGeneratedOTP] = useState('');
+
+  // استخدام البيانات من الـ Context
+  const { data, addUser, setCurrentView } = useAppContext();
 
   const registerStyles = {
     container: "min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4",
@@ -31,11 +35,30 @@ const RegisterScreen = ({ data, setData, setCurrentView }) => {
 
   const validateStep1 = () => {
     const newErrors = {};
+    
     if (!formData.name.trim()) newErrors.name = 'الاسم مطلوب';
-    if (!formData.nationalId.trim()) newErrors.nationalId = 'رقم الهوية مطلوب';
-    if (!formData.phone.trim()) newErrors.phone = 'رقم الجوال مطلوب';
-    if (!formData.password) newErrors.password = 'كلمة المرور مطلوبة';
-    if (formData.password !== formData.confirmPassword) newErrors.confirmPassword = 'كلمات المرور غير متطابقة';
+    
+    if (!formData.nationalId.trim()) {
+      newErrors.nationalId = 'رقم الهوية مطلوب';
+    } else if (formData.nationalId.length !== 10) {
+      newErrors.nationalId = 'رقم الهوية يجب أن يكون 10 أرقام';
+    }
+    
+    if (!formData.phone.trim()) {
+      newErrors.phone = 'رقم الجوال مطلوب';
+    } else if (!/^05[0-9]{8}$/.test(formData.phone)) {
+      newErrors.phone = 'رقم الجوال يجب أن يبدأ بـ 05 ويتكون من 10 أرقام';
+    }
+    
+    if (!formData.password) {
+      newErrors.password = 'كلمة المرور مطلوبة';
+    } else if (formData.password.length < 6) {
+      newErrors.password = 'كلمة المرور يجب أن تكون على الأقل 6 أحرف';
+    }
+    
+    if (formData.password !== formData.confirmPassword) {
+      newErrors.confirmPassword = 'كلمات المرور غير متطابقة';
+    }
     
     if (data.users.find(u => u.id === formData.nationalId)) {
       newErrors.nationalId = 'رقم الهوية مسجل مسبقاً';
@@ -66,16 +89,22 @@ const RegisterScreen = ({ data, setData, setCurrentView }) => {
         createdAt: new Date().toISOString()
       };
 
-      setData(prev => ({
-        ...prev,
-        users: [...prev.users, newUser]
-      }));
+      addUser(newUser);
 
       alert('تم إنشاء الحساب بنجاح!');
       setCurrentView('login');
     } else {
       setErrors({ otp: 'رمز التحقق غير صحيح' });
     }
+  };
+
+  const resetForm = () => {
+    setFormData({
+      name: '', nationalId: '', phone: '', password: '', confirmPassword: '', otp: ''
+    });
+    setErrors({});
+    setGeneratedOTP('');
+    setStep(1);
   };
 
   return (
@@ -96,56 +125,65 @@ const RegisterScreen = ({ data, setData, setCurrentView }) => {
         {step === 1 ? (
           <div className={registerStyles.form}>
             <div className={registerStyles.inputGroup}>
-              <label className={registerStyles.label}>الاسم الكامل</label>
+              <label className={registerStyles.label}>الاسم الكامل *</label>
               <input
                 type="text"
                 value={formData.name}
                 onChange={(e) => setFormData({...formData, name: e.target.value})}
                 className={errors.name ? registerStyles.inputError : registerStyles.input}
+                placeholder="أدخل اسمك الكامل"
+                maxLength="100"
               />
               {errors.name && <p className={registerStyles.error}>{errors.name}</p>}
             </div>
 
             <div className={registerStyles.inputGroup}>
-              <label className={registerStyles.label}>رقم الهوية الوطنية</label>
+              <label className={registerStyles.label}>رقم الهوية الوطنية *</label>
               <input
                 type="text"
                 value={formData.nationalId}
-                onChange={(e) => setFormData({...formData, nationalId: e.target.value})}
+                onChange={(e) => setFormData({...formData, nationalId: e.target.value.replace(/\D/g, '')})}
                 className={errors.nationalId ? registerStyles.inputError : registerStyles.input}
+                placeholder="1234567890"
+                maxLength="10"
               />
               {errors.nationalId && <p className={registerStyles.error}>{errors.nationalId}</p>}
             </div>
 
             <div className={registerStyles.inputGroup}>
-              <label className={registerStyles.label}>رقم الجوال</label>
+              <label className={registerStyles.label}>رقم الجوال *</label>
               <input
                 type="tel"
                 value={formData.phone}
-                onChange={(e) => setFormData({...formData, phone: e.target.value})}
+                onChange={(e) => setFormData({...formData, phone: e.target.value.replace(/\D/g, '')})}
                 className={errors.phone ? registerStyles.inputError : registerStyles.input}
+                placeholder="0501234567"
+                maxLength="10"
               />
               {errors.phone && <p className={registerStyles.error}>{errors.phone}</p>}
             </div>
 
             <div className={registerStyles.inputGroup}>
-              <label className={registerStyles.label}>كلمة المرور</label>
+              <label className={registerStyles.label}>كلمة المرور *</label>
               <input
                 type="password"
                 value={formData.password}
                 onChange={(e) => setFormData({...formData, password: e.target.value})}
                 className={errors.password ? registerStyles.inputError : registerStyles.input}
+                placeholder="اختر كلمة مرور قوية"
+                minLength="6"
               />
               {errors.password && <p className={registerStyles.error}>{errors.password}</p>}
             </div>
 
             <div className={registerStyles.inputGroup}>
-              <label className={registerStyles.label}>تأكيد كلمة المرور</label>
+              <label className={registerStyles.label}>تأكيد كلمة المرور *</label>
               <input
                 type="password"
                 value={formData.confirmPassword}
                 onChange={(e) => setFormData({...formData, confirmPassword: e.target.value})}
                 className={errors.confirmPassword ? registerStyles.inputError : registerStyles.input}
+                placeholder="أعد كتابة كلمة المرور"
               />
               {errors.confirmPassword && <p className={registerStyles.error}>{errors.confirmPassword}</p>}
             </div>
@@ -156,17 +194,20 @@ const RegisterScreen = ({ data, setData, setCurrentView }) => {
           </div>
         ) : (
           <div className={registerStyles.form}>
-            <div className="text-center">
-              <p className="text-gray-600 mb-4">تم إرسال رمز التحقق إلى رقم الجوال</p>
-              <p className="font-bold text-lg">{formData.phone}</p>
+            <div className="text-center mb-6">
+              <p className="text-gray-600 mb-2">تم إرسال رمز التحقق إلى رقم الجوال</p>
+              <p className="font-bold text-lg text-blue-600">{formData.phone}</p>
+              <p className="text-sm text-gray-500 mt-2">
+                الرمز صالح لمدة 5 دقائق
+              </p>
             </div>
 
             <div className={registerStyles.inputGroup}>
-              <label className={registerStyles.label}>رمز التحقق</label>
+              <label className={registerStyles.label}>رمز التحقق *</label>
               <input
                 type="text"
                 value={formData.otp}
-                onChange={(e) => setFormData({...formData, otp: e.target.value})}
+                onChange={(e) => setFormData({...formData, otp: e.target.value.replace(/\D/g, '')})}
                 className={`${errors.otp ? registerStyles.inputError : registerStyles.input} text-center text-2xl tracking-widest`}
                 maxLength="6"
                 placeholder="000000"
@@ -174,13 +215,26 @@ const RegisterScreen = ({ data, setData, setCurrentView }) => {
               {errors.otp && <p className={registerStyles.error}>{errors.otp}</p>}
             </div>
 
-            <button onClick={verifyOTP} className={`btn-success w-full`}>
-              تأكيد وإنشاء الحساب
-            </button>
+            <div className="space-y-3">
+              <button onClick={verifyOTP} className={`btn-success w-full`}>
+                تأكيد وإنشاء الحساب
+              </button>
 
-            <button onClick={() => setStep(1)} className={`${registerStyles.buttonSecondary} w-full`}>
-              العودة للخطوة السابقة
-            </button>
+              <button onClick={() => setStep(1)} className={`${registerStyles.buttonSecondary} w-full`}>
+                العودة للخطوة السابقة
+              </button>
+              
+              <button 
+                onClick={() => {
+                  const otp = Math.floor(100000 + Math.random() * 900000).toString();
+                  setGeneratedOTP(otp);
+                  alert(`رمز التحقق الجديد: ${otp}`);
+                }}
+                className="text-blue-600 hover:text-blue-800 text-sm w-full text-center"
+              >
+                إعادة إرسال الرمز
+              </button>
+            </div>
           </div>
         )}
 
@@ -191,6 +245,11 @@ const RegisterScreen = ({ data, setData, setCurrentView }) => {
           >
             العودة لتسجيل الدخول
           </button>
+        </div>
+
+        {/* معلومات إضافية */}
+        <div className="mt-4 text-xs text-gray-500 text-center">
+          بإنشاء حساب، فإنك توافق على شروط الخدمة وسياسة الخصوصية
         </div>
       </div>
     </div>

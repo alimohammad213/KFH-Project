@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import { Upload, AlertCircle } from 'lucide-react';
 import { autoAssignComplaintWithLevel, getRoleName } from '../../utils/helpers';
+import { useAppContext } from '../../App'; // استيراد الـ Context
 
-const NewComplaintForm = ({ currentUser, data, setData, setActiveTab }) => {
+const NewComplaintForm = ({ setActiveTab }) => {
   const [formData, setFormData] = useState({
     department: '',
     subject: '',
@@ -10,6 +11,9 @@ const NewComplaintForm = ({ currentUser, data, setData, setActiveTab }) => {
     attachments: []
   });
   const [step, setStep] = useState(1);
+
+  // استخدام البيانات من الـ Context
+  const { currentUser, data, addComplaint } = useAppContext();
 
   const formStyles = {
     container: "max-w-2xl mx-auto",
@@ -21,7 +25,7 @@ const NewComplaintForm = ({ currentUser, data, setData, setActiveTab }) => {
     input: "input-field",
     select: "input-field",
     textarea: "input-field",
-    uploadArea: "border-2 border-dashed border-gray-300 rounded-lg p-4 text-center",
+    uploadArea: "border-2 border-dashed border-gray-300 rounded-lg p-4 text-center hover:border-gray-400 transition-colors",
     uploadIcon: "mx-auto w-8 h-8 text-gray-400 mb-2",
     uploadText: "text-sm text-gray-500",
     buttonGroup: "flex gap-4",
@@ -40,6 +44,7 @@ const NewComplaintForm = ({ currentUser, data, setData, setActiveTab }) => {
   };
 
   const handleSubmit = () => {
+    // إنشاء شكوى جديدة
     const newComplaint = {
       id: Date.now().toString(),
       patientId: currentUser.id,
@@ -62,6 +67,7 @@ const NewComplaintForm = ({ currentUser, data, setData, setActiveTab }) => {
       escalationLevel: 1
     };
 
+    // التعيين التلقائي للشكوى
     const assignedStaff = autoAssignComplaintWithLevel(newComplaint, data.staff, 1);
     
     if (assignedStaff) {
@@ -74,13 +80,43 @@ const NewComplaintForm = ({ currentUser, data, setData, setActiveTab }) => {
       });
     }
 
-    setData(prev => ({
-      ...prev,
-      complaints: [...prev.complaints, newComplaint]
-    }));
+    // إضافة الشكوى للبيانات
+    addComplaint(newComplaint);
 
+    // إظهار رسالة نجاح
     alert('تم إرسال الشكوى بنجاح!');
+    
+    // العودة لصفحة الشكاوى
     setActiveTab('complaints');
+    
+    // إعادة تعيين النموذج
+    setFormData({
+      department: '',
+      subject: '',
+      description: '',
+      attachments: []
+    });
+    setStep(1);
+  };
+
+  const handleFileUpload = (event) => {
+    const files = Array.from(event.target.files);
+    // في النسخة الحقيقية، سنرسل الملفات للسيرفر
+    setFormData({
+      ...formData,
+      attachments: [...formData.attachments, ...files.map(file => ({
+        name: file.name,
+        size: file.size,
+        type: file.type
+      }))]
+    });
+  };
+
+  const removeAttachment = (index) => {
+    setFormData({
+      ...formData,
+      attachments: formData.attachments.filter((_, i) => i !== index)
+    });
   };
 
   return (
@@ -91,7 +127,7 @@ const NewComplaintForm = ({ currentUser, data, setData, setActiveTab }) => {
         {step === 1 ? (
           <div className={formStyles.form}>
             <div className={formStyles.inputGroup}>
-              <label className={formStyles.label}>القسم</label>
+              <label className={formStyles.label}>القسم *</label>
               <select
                 value={formData.department}
                 onChange={(e) => setFormData({...formData, department: e.target.value})}
@@ -111,7 +147,7 @@ const NewComplaintForm = ({ currentUser, data, setData, setActiveTab }) => {
             </div>
 
             <div className={formStyles.inputGroup}>
-              <label className={formStyles.label}>موضوع الشكوى</label>
+              <label className={formStyles.label}>موضوع الشكوى *</label>
               <input
                 type="text"
                 value={formData.subject}
@@ -119,27 +155,68 @@ const NewComplaintForm = ({ currentUser, data, setData, setActiveTab }) => {
                 className={formStyles.input}
                 placeholder="اكتب موضوع الشكوى"
                 required
+                maxLength="255"
               />
+              <small className="text-gray-500">
+                {formData.subject.length}/255 حرف
+              </small>
             </div>
 
             <div className={formStyles.inputGroup}>
-              <label className={formStyles.label}>وصف المشكلة</label>
+              <label className={formStyles.label}>وصف المشكلة *</label>
               <textarea
                 value={formData.description}
                 onChange={(e) => setFormData({...formData, description: e.target.value})}
                 className={formStyles.textarea}
                 rows="5"
-                placeholder="اشرح المشكلة بالتفصيل"
+                placeholder="اشرح المشكلة بالتفصيل..."
                 required
+                maxLength="2000"
               />
+              <small className="text-gray-500">
+                {formData.description.length}/2000 حرف
+              </small>
             </div>
 
             <div className={formStyles.inputGroup}>
               <label className={formStyles.label}>المرفقات (اختياري)</label>
               <div className={formStyles.uploadArea}>
-                <Upload className={formStyles.uploadIcon} />
-                <p className={formStyles.uploadText}>اسحب الملفات هنا أو انقر للاختيار</p>
+                <input
+                  type="file"
+                  multiple
+                  accept="image/*,.pdf,.doc,.docx"
+                  onChange={handleFileUpload}
+                  className="hidden"
+                  id="file-upload"
+                />
+                <label htmlFor="file-upload" className="cursor-pointer">
+                  <Upload className={formStyles.uploadIcon} />
+                  <p className={formStyles.uploadText}>
+                    انقر لاختيار الملفات أو اسحبها هنا
+                  </p>
+                  <p className="text-xs text-gray-400 mt-1">
+                    الصور، PDF، Word (حد أقصى 5 ملفات، 5MB لكل ملف)
+                  </p>
+                </label>
               </div>
+              
+              {/* عرض المرفقات المختارة */}
+              {formData.attachments.length > 0 && (
+                <div className="mt-2 space-y-2">
+                  {formData.attachments.map((file, index) => (
+                    <div key={index} className="flex items-center justify-between bg-gray-100 p-2 rounded">
+                      <span className="text-sm">{file.name}</span>
+                      <button
+                        type="button"
+                        onClick={() => removeAttachment(index)}
+                        className="text-red-600 hover:text-red-800"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
 
             <div className={formStyles.buttonGroup}>
@@ -187,6 +264,12 @@ const NewComplaintForm = ({ currentUser, data, setData, setActiveTab }) => {
                 <span className={formStyles.previewLabel}>التاريخ:</span>
                 <span className={formStyles.previewValue}> {new Date().toLocaleDateString('ar-SA')}</span>
               </div>
+              {formData.attachments.length > 0 && (
+                <div className={formStyles.previewItem}>
+                  <span className={formStyles.previewLabel}>المرفقات:</span>
+                  <span className={formStyles.previewValue}> {formData.attachments.length} ملف</span>
+                </div>
+              )}
             </div>
 
             <div className={formStyles.disclaimer}>
@@ -196,6 +279,7 @@ const NewComplaintForm = ({ currentUser, data, setData, setActiveTab }) => {
                   <h4 className={formStyles.disclaimerTitle}>إقرار وموافقة</h4>
                   <p className={formStyles.disclaimerText}>
                     أقر بأن المعلومات المقدمة صحيحة وأوافق على معالجة هذه الشكوى وفقاً لسياسات المستشفى.
+                    سيتم تعيين الشكوى تلقائياً للموظف المناسب وستحصل على رقم متابعة.
                   </p>
                 </div>
               </div>

@@ -1,11 +1,14 @@
 import React, { useState } from 'react';
 import { Search, Eye, Edit, FileText } from 'lucide-react';
 import { getStatusColor, formatDate } from '../../utils/helpers';
+import { useAppContext } from '../../App';
 
-const ComplaintsManagement = ({ data, setData, setSelectedComplaint }) => {
+const ComplaintsManagement = ({ setSelectedComplaint }) => {
   const [filter, setFilter] = useState('all');
   const [searchTerm, setSearchTerm] = useState('');
   const [showReassignModal, setShowReassignModal] = useState(null);
+
+  const { data, setData } = useAppContext();
 
   const complaintsStyles = {
     container: "fade-in",
@@ -199,7 +202,7 @@ const ComplaintsManagement = ({ data, setData, setSelectedComplaint }) => {
                     
                     <div className={complaintsStyles.actionButtons}>
                       <button
-                        onClick={() => setSelectedComplaint(complaint)}
+                        onClick={() => setSelectedComplaint && setSelectedComplaint(complaint)}
                         className={complaintsStyles.viewBtn}
                       >
                         <Eye className="w-4 h-4 inline ml-1" />

@@ -3,15 +3,13 @@ import { FileText, Home, Plus, LogOut, CheckCircle, Clock } from 'lucide-react';
 import NewComplaintForm from './NewComplaintForm';
 import ComplaintsList from './ComplaintsList';
 import { getStatusColor } from '../../utils/helpers';
-import { initialData } from '../../data/initialData';
+import { useAppContext } from '../../App'; // استيراد الـ Context
 
-const PatientDashboard = ({ currentUser, logout }) => {
-  // حالة البيانات الرئيسية
-  const [data, setData] = useState(initialData);
+const PatientDashboard = () => {
   const [activeTab, setActiveTab] = useState('dashboard');
-
-  // شكاوى المستخدم الحالي
-  const userComplaints = data.complaints.filter(c => c.patientId === currentUser.id);
+  
+  // استخدام البيانات من الـ Context بدلاً من إعادة التهيئة
+  const { currentUser, logout, userComplaints } = useAppContext();
 
   const patientStyles = {
     container: "min-h-screen bg-gray-50",
@@ -48,6 +46,8 @@ const PatientDashboard = ({ currentUser, logout }) => {
   const Dashboard = () => (
     <div className="fade-in">
       <h2 className="text-2xl font-bold mb-6">لوحة التحكم</h2>
+      
+      {/* الإحصائيات */}
       <div className={patientStyles.statsGrid}>
         <div className={patientStyles.statCard}>
           <div className={patientStyles.statInner}>
@@ -90,6 +90,7 @@ const PatientDashboard = ({ currentUser, logout }) => {
         </div>
       </div>
 
+      {/* آخر الشكاوى */}
       <div className={patientStyles.dashboardCard}>
         <h3 className={patientStyles.cardTitle}>آخر الشكاوى</h3>
         {userComplaints.slice(0, 3).map(complaint => (
@@ -104,15 +105,39 @@ const PatientDashboard = ({ currentUser, logout }) => {
           </div>
         ))}
         {userComplaints.length === 0 && (
-          <p className="text-gray-500 text-center py-4">لا توجد شكاوى</p>
+          <div className="text-center py-8">
+            <FileText className="mx-auto w-16 h-16 text-gray-300 mb-4" />
+            <p className="text-gray-500">لا توجد شكاوى</p>
+            <button 
+              onClick={() => setActiveTab('new-complaint')}
+              className="btn-primary mt-4"
+            >
+              إرسال شكوى جديدة
+            </button>
+          </div>
         )}
       </div>
     </div>
   );
 
+  // التحقق من وجود المستخدم
+  if (!currentUser) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <h2 className="text-xl font-bold text-gray-900 mb-2">جلسة منتهية</h2>
+          <p className="text-gray-600 mb-4">يرجى تسجيل الدخول مرة أخرى</p>
+          <button onClick={logout} className="btn-primary">
+            تسجيل الدخول
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className={patientStyles.container}>
-      {/* Header */}
+      {/* الهيدر */}
       <div className={patientStyles.header}>
         <div className={patientStyles.headerContent}>
           <div className={patientStyles.headerInner}>
@@ -131,7 +156,7 @@ const PatientDashboard = ({ currentUser, logout }) => {
         </div>
       </div>
 
-      {/* Navigation */}
+      {/* التنقل */}
       <div className={patientStyles.nav}>
         <div className={patientStyles.navContent}>
           <nav className={patientStyles.navInner}>
@@ -153,18 +178,15 @@ const PatientDashboard = ({ currentUser, logout }) => {
         </div>
       </div>
 
-      {/* Content */}
+      {/* المحتوى */}
       <div className={patientStyles.content}>
         {activeTab === 'dashboard' && <Dashboard />}
         {activeTab === 'new-complaint' && (
-          <NewComplaintForm
-            currentUser={currentUser}
-            data={data}          // ✅ مرر state
-            setData={setData}    // ✅ مرر setter
-            setActiveTab={setActiveTab}
-          />
+          <NewComplaintForm setActiveTab={setActiveTab} />
         )}
-        {activeTab === 'complaints' && <ComplaintsList userComplaints={userComplaints} />}
+        {activeTab === 'complaints' && (
+          <ComplaintsList userComplaints={userComplaints} />
+        )}
       </div>
     </div>
   );

@@ -2,9 +2,11 @@ import React, { useState } from 'react';
 import { AlertCircle, Clock, Settings } from 'lucide-react';
 import { formatDateTime } from '../../utils/helpers';
 import { getEscalationTarget, canEscalate, getRoleName } from '../../utils/helpers';
+import { useAppContext } from '../../App';
 
-const EscalationSettings = ({ data, setData, pendingEscalation }) => {
+const EscalationSettings = ({ pendingEscalation }) => {
   const [escalationHours, setEscalationHours] = useState(72);
+  const { data, setData } = useAppContext();
 
   const escalationStyles = {
     container: "fade-in",
@@ -32,44 +34,41 @@ const EscalationSettings = ({ data, setData, pendingEscalation }) => {
     statLabel: "text-gray-600 text-sm"
   };
 
-  // src/components/Admin/EscalationSettings.js
-
-
-const handleEscalation = (complaintId) => {
-  const complaint = data.complaints.find(c => c.id === complaintId);
-  
-  if (!canEscalate(complaint, data)) {
-    alert('هذه الشكوى وصلت لأعلى مستوى ولا يمكن تصعيدها أكثر');
-    return;
-  }
-  
-  const escalationTarget = getEscalationTarget(complaint, data);
-  
-  setData(prev => ({
-    ...prev,
-    complaints: prev.complaints.map(c => {
-      if (c.id === complaintId) {
-        return {
-          ...c,
-          escalated: true,
-          status: 'متصعدة',
-          assignedTo: escalationTarget.id,
-          escalationLevel: (c.escalationLevel || 1) + 1,
-          updatedAt: new Date().toISOString(),
-          timeline: [...c.timeline, {
+  const handleEscalation = (complaintId) => {
+    const complaint = data.complaints.find(c => c.id === complaintId);
+    
+    if (!canEscalate(complaint, data)) {
+      alert('هذه الشكوى وصلت لأعلى مستوى ولا يمكن تصعيدها أكثر');
+      return;
+    }
+    
+    const escalationTarget = getEscalationTarget(complaint, data);
+    
+    setData(prev => ({
+      ...prev,
+      complaints: prev.complaints.map(c => {
+        if (c.id === complaintId) {
+          return {
+            ...c,
+            escalated: true,
             status: 'متصعدة',
-            timestamp: new Date().toISOString(),
-            note: `تم تصعيد الشكوى إلى: ${escalationTarget.name} (${getRoleName(escalationTarget.role)})`,
-            updatedBy: 'النظام'
-          }]
-        };
-      }
-      return c;
-    })
-  }));
-  
-  alert(`تم تصعيد الشكوى إلى: ${escalationTarget.name}`);
-};
+            assignedTo: escalationTarget.id,
+            escalationLevel: (c.escalationLevel || 1) + 1,
+            updatedAt: new Date().toISOString(),
+            timeline: [...c.timeline, {
+              status: 'متصعدة',
+              timestamp: new Date().toISOString(),
+              note: `تم تصعيد الشكوى إلى: ${escalationTarget.name} (${getRoleName(escalationTarget.role)})`,
+              updatedBy: 'النظام'
+            }]
+          };
+        }
+        return c;
+      })
+    }));
+    
+    alert(`تم تصعيد الشكوى إلى: ${escalationTarget.name}`);
+  };
 
   const escalateAll = () => {
     if (window.confirm(`هل تريد تصعيد جميع الشكاوى المتأخرة (${pendingEscalation.length} شكوى)؟`)) {
@@ -80,7 +79,6 @@ const handleEscalation = (complaintId) => {
   };
 
   const saveSettings = () => {
-    // In a real app, this would save to backend
     alert(`تم حفظ الإعدادات - المهلة الزمنية: ${escalationHours} ساعة`);
   };
 

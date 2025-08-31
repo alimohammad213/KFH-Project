@@ -31,7 +31,7 @@ export const autoAssignComplaint = (complaint, staff) => {
   return null;
 };
 
-export const checkEscalation = (complaint, escalationHours = 72) => {
+export const checkEscalation = (complaint, escalationHours = 0.017) => {
   const hoursSinceCreated = (new Date() - new Date(complaint.createdAt)) / (1000 * 60 * 60);
   return hoursSinceCreated > escalationHours && 
          complaint.status !== 'تم الحل' && 

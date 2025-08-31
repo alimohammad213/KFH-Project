@@ -1,8 +1,12 @@
 import React, { useState } from 'react';
 import { Trash2 } from 'lucide-react';
+import { useAppContext } from '../../App'; // استيراد الـ Context
 
-const DepartmentManagement = ({ data, setData }) => {
+const DepartmentManagement = () => {
   const [newDepartment, setNewDepartment] = useState('');
+  
+  // استخدام البيانات من الـ Context
+  const { data, setData } = useAppContext();
 
   const deptStyles = {
     container: "fade-in",

@@ -1,11 +1,14 @@
 import React, { useState, useMemo } from 'react';
 import { Clock, User, FileText, Filter, Download, Search } from 'lucide-react';
 import { formatDateTime } from '../../utils/helpers';
+import { useAppContext } from '../../App';
 
-const SystemLogs = ({ data }) => {
+const SystemLogs = () => {
   const [filter, setFilter] = useState('all');
   const [searchTerm, setSearchTerm] = useState('');
   const [dateFilter, setDateFilter] = useState('today');
+
+  const { data } = useAppContext();
 
   const logsStyles = {
     container: "fade-in",
@@ -62,21 +65,23 @@ const SystemLogs = ({ data }) => {
 
     // Timeline logs
     data.complaints.forEach(c => {
-      c.timeline.forEach((t, index) => {
-        if (index > 0) { // Skip initial creation
-          allLogs.push({
-            id: c.id + '_timeline_' + index,
-            action: 'تحديث حالة',
-            type: t.status === 'متصعدة' ? 'escalate' : 
-                  t.status === 'إعادة تعيين' ? 'reassign' : 'update',
-            user: t.updatedBy || 'النظام',
-            userType: t.updatedBy === 'النظام' ? 'نظام' : 'موظف',
-            target: `${c.subject} - ${t.status}`,
-            details: t.note,
-            timestamp: t.timestamp
-          });
-        }
-      });
+      if (c.timeline && c.timeline.length > 0) {
+        c.timeline.forEach((t, index) => {
+          if (index > 0) { // Skip initial creation
+            allLogs.push({
+              id: c.id + '_timeline_' + index,
+              action: 'تحديث حالة',
+              type: t.status === 'متصعدة' ? 'escalate' : 
+                    t.status === 'إعادة تعيين' ? 'reassign' : 'update',
+              user: t.updatedBy || 'النظام',
+              userType: t.updatedBy === 'النظام' ? 'نظام' : 'موظف',
+              target: `${c.subject} - ${t.status}`,
+              details: t.note,
+              timestamp: t.timestamp
+            });
+          }
+        });
+      }
     });
 
     // Staff creation logs (simulated)
