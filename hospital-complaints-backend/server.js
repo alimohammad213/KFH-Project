@@ -73,6 +73,13 @@ app.get('/api/health', (req, res) => {
 
 // API routes
 app.use('/api/auth', authRoutes);
+const complaintsRoutes = require('./routes/complaints');
+app.use('/api/complaints', complaintsRoutes);
+
+const departmentsRoutes = require('./routes/departments');
+const usersRoutes = require('./routes/users');
+app.use('/api/departments', departmentsRoutes);
+app.use('/api/users', usersRoutes);
 
 // API routes will be added here later
 app.get('/api', (req, res) => {

@@ -1,14 +1,14 @@
 import React, { useState } from 'react';
 import { FileText } from 'lucide-react';
-import { useAppContext } from '../../App'; // استيراد الـ Context
+import { useAppContext } from '../../App';
+import { authService } from '../../services/api';
 
 const LoginScreen = () => {
   const [formData, setFormData] = useState({ username: '', password: '' });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
-  // استخدام البيانات من الـ Context
-  const { data, setCurrentUser, setCurrentView } = useAppContext();
+  const { setCurrentUser, setCurrentView } = useAppContext();
 
   const loginScreenStyles = {
     container: "min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4",
@@ -28,64 +28,41 @@ const LoginScreen = () => {
     demo: "mt-6 p-4 bg-gray-50 rounded-lg text-xs"
   };
 
-  const handleLogin = (e) => {
+  const handleLogin = async (e) => {
     e.preventDefault();
+    
+    if (!formData.username || !formData.password) {
+      setError('يرجى إدخال اسم المستخدم وكلمة المرور');
+      return;
+    }
+
     setLoading(true);
     setError('');
 
-    setTimeout(() => {
-      let user = null;
-      let userType = '';
+    try {
+      console.log('محاولة تسجيل الدخول...', { username: formData.username });
+      
+      const result = await authService.login({
+        username: formData.username,
+        password: formData.password
+      });
 
-      const allUserTables = [
-        { 
-          table: data.users, 
-          type: 'patient', 
-          usernameField: 'id',
-          requireVerified: true
-        },
-        { 
-          table: data.staff, 
-          type: 'staff', 
-          usernameField: 'username',
-          requireVerified: false
-        },
-        { 
-          table: data.admins, 
-          type: 'admin', 
-          usernameField: 'username',
-          requireVerified: false
-        }
-      ];
-
-      for (const { table, type, usernameField, requireVerified } of allUserTables) {
-        const foundUser = table.find(u => {
-          const usernameMatch = u[usernameField] === formData.username;
-          const passwordMatch = u.password === formData.password;
-          const verificationCheck = requireVerified ? u.verified : true;
-          
-          return usernameMatch && passwordMatch && verificationCheck;
-        });
+      if (result.success) {
+        const { user } = result.data;
         
-        if (foundUser) {
-          user = foundUser;
-          // استخدام الـ role من المستخدم نفسه
-          userType = foundUser.role;
-          break;
-        }
-      }
-
-      if (user) {
-        console.log('تسجيل دخول ناجح:', {
-          name: user.name || user.username,
-          role: userType,
+        console.log('نجح تسجيل الدخول:', {
+          id: user.id,
+          name: user.name,
+          role: user.role,
           level: user.level
         });
 
+        // تحديث المستخدم الحالي
         setCurrentUser(user);
         
+        // تحديد الواجهة المناسبة حسب دور المستخدم
         let targetView;
-        switch (userType) {
+        switch (user.role) {
           case 'patient':
             targetView = 'patient-dashboard';
             break;
@@ -98,19 +75,28 @@ const LoginScreen = () => {
             targetView = 'admin-dashboard';
             break;
           default:
-            targetView = 'login';
-            console.warn('نوع مستخدم غير معروف:', userType);
+            console.warn('دور مستخدم غير معروف:', user.role);
+            targetView = 'patient-dashboard';
         }
         
         setCurrentView(targetView);
         setError('');
       } else {
-        setError('بيانات الدخول غير صحيحة');
-        console.log('فشل تسجيل الدخول:', formData.username);
+        console.log('فشل تسجيل الدخول:', result.error);
+        setError(result.error);
       }
-      
+    } catch (error) {
+      console.error('خطأ في تسجيل الدخول:', error);
+      setError('حدث خطأ غير متوقع، يرجى المحاولة مرة أخرى');
+    } finally {
       setLoading(false);
-    }, 1000);
+    }
+  };
+
+  // ملء البيانات التجريبية
+  const fillDemoData = (username, password) => {
+    setFormData({ username, password });
+    setError('');
   };
 
   return (
@@ -182,28 +168,53 @@ const LoginScreen = () => {
         <div className={loginScreenStyles.demo}>
           <p className="font-semibold mb-2 text-center">بيانات تجريبية للاختبار:</p>
           <div className="space-y-2">
-            <div className="flex items-center justify-between">
+            <div 
+              className="flex items-center justify-between hover:bg-blue-50 p-2 rounded cursor-pointer"
+              onClick={() => fillDemoData('123456789', '123456')}
+            >
               <span className="font-medium">مريض:</span>
               <span>123456789 / 123456</span>
             </div>
-            <div className="flex items-center justify-between">
+            <div 
+              className="flex items-center justify-between hover:bg-blue-50 p-2 rounded cursor-pointer"
+              onClick={() => fillDemoData('sara.ahmed', 'staff123')}
+            >
               <span className="font-medium">موظف:</span>
               <span>sara.ahmed / staff123</span>
             </div>
-            <div className="flex items-center justify-between">
+            <div 
+              className="flex items-center justify-between hover:bg-blue-50 p-2 rounded cursor-pointer"
+              onClick={() => fillDemoData('khalid.supervisor', 'super123')}
+            >
               <span className="font-medium">مشرف:</span>
               <span>khalid.supervisor / super123</span>
             </div>
-            <div className="flex items-center justify-between">
+            <div 
+              className="flex items-center justify-between hover:bg-blue-50 p-2 rounded cursor-pointer"
+              onClick={() => fillDemoData('nora.manager', 'mgr123')}
+            >
               <span className="font-medium">مدير:</span>
               <span>nora.manager / mgr123</span>
             </div>
-            <div className="flex items-center justify-between">
+            <div 
+              className="flex items-center justify-between hover:bg-blue-50 p-2 rounded cursor-pointer"
+              onClick={() => fillDemoData('admin', 'admin123')}
+            >
               <span className="font-medium">إدارة:</span>
               <span>admin / admin123</span>
             </div>
           </div>
-          <p className="text-center mt-2 text-gray-500">سيتم تحديد نوع المستخدم تلقائياً</p>
+          <p className="text-center mt-2 text-gray-500">اضغط على أي سطر لتعبئة البيانات</p>
+        </div>
+
+        {/* مؤشر الاتصال */}
+        <div className="mt-4 text-center">
+          <div className="flex items-center justify-center space-x-2">
+            <div className={`w-2 h-2 rounded-full ${navigator.onLine ? 'bg-green-500' : 'bg-red-500'}`}></div>
+            <span className="text-xs text-gray-500">
+              {navigator.onLine ? 'متصل بالخادم' : 'غير متصل بالخادم'}
+            </span>
+          </div>
         </div>
       </div>
     </div>

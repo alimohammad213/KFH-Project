@@ -1,19 +1,23 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Upload, AlertCircle } from 'lucide-react';
-import { autoAssignComplaintWithLevel, getRoleName } from '../../utils/helpers';
-import { useAppContext } from '../../App'; // استيراد الـ Context
+import { complaintsService, departmentsService } from '../../services/api';
+import { useAppContext } from '../../App';
 
-const NewComplaintForm = ({ setActiveTab }) => {
+const NewComplaintForm = ({ setActiveTab, onComplaintCreated }) => {
   const [formData, setFormData] = useState({
-    department: '',
+    department_id: '',
     subject: '',
     description: '',
+    priority: 'متوسط',
     attachments: []
   });
+  const [departments, setDepartments] = useState([]);
   const [step, setStep] = useState(1);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [loadingDepartments, setLoadingDepartments] = useState(true);
 
-  // استخدام البيانات من الـ Context
-  const { currentUser, data, addComplaint } = useAppContext();
+  const { currentUser, handleAppError } = useAppContext();
 
   const formStyles = {
     container: "max-w-2xl mx-auto",
@@ -32,6 +36,7 @@ const NewComplaintForm = ({ setActiveTab }) => {
     button: "btn-primary",
     buttonSecondary: "btn-secondary",
     buttonSuccess: "btn-success",
+    buttonDisabled: "btn-primary opacity-50 cursor-not-allowed",
     previewCard: "bg-gray-50 p-4 rounded-lg space-y-3",
     previewItem: "space-y-1",
     previewLabel: "font-medium",
@@ -40,68 +45,96 @@ const NewComplaintForm = ({ setActiveTab }) => {
     disclaimerIcon: "w-5 h-5 text-yellow-600 mt-0.5 ml-2",
     disclaimerContent: "flex-1",
     disclaimerTitle: "font-semibold text-yellow-800",
-    disclaimerText: "text-yellow-700 text-sm mt-1"
+    disclaimerText: "text-yellow-700 text-sm mt-1",
+    errorAlert: "bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg mb-4",
+    successAlert: "bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-lg mb-4"
   };
 
-  const handleSubmit = () => {
-    // إنشاء شكوى جديدة
-    const newComplaint = {
-      id: Date.now().toString(),
-      patientId: currentUser.id,
-      patientName: currentUser.name,
-      patientPhone: currentUser.phone,
-      department: formData.department,
-      subject: formData.subject,
-      description: formData.description,
-      attachments: formData.attachments,
-      status: 'جديدة',
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      timeline: [{
-        status: 'جديدة',
-        timestamp: new Date().toISOString(),
-        note: 'تم استلام الشكوى'
-      }],
-      assignedTo: null,
-      escalated: false,
-      escalationLevel: 1
-    };
+  // جلب الأقسام عند تحميل المكون
+  useEffect(() => {
+    fetchDepartments();
+  }, []);
 
-    // التعيين التلقائي للشكوى
-    const assignedStaff = autoAssignComplaintWithLevel(newComplaint, data.staff, 1);
-    
-    if (assignedStaff) {
-      newComplaint.assignedTo = assignedStaff.id;
-      newComplaint.status = 'تحت المراجعة';
-      newComplaint.timeline.push({
-        status: 'تحت المراجعة',
-        timestamp: new Date().toISOString(),
-        note: `تم تعيين الشكوى للموظف: ${assignedStaff.name} (${getRoleName(assignedStaff.role)})`
-      });
+  const fetchDepartments = async () => {
+    try {
+      setLoadingDepartments(true);
+      // استخدام أقسام ثابتة إذا لم يكن لدينا API للأقسام
+      const defaultDepartments = [
+        { id: 1, name: 'أشعة' },
+        { id: 2, name: 'طوارئ' },
+        { id: 3, name: 'مواعيد' },
+        { id: 4, name: 'المختبر' },
+        { id: 5, name: 'الصيدلية' },
+        { id: 6, name: 'الاستقبال' }
+      ];
+      setDepartments(defaultDepartments);
+    } catch (error) {
+      console.error('خطأ في جلب الأقسام:', error);
+      handleAppError('حدث خطأ في جلب الأقسام');
+    } finally {
+      setLoadingDepartments(false);
     }
+  };
 
-    // إضافة الشكوى للبيانات
-    addComplaint(newComplaint);
+  const handleSubmit = async () => {
+    setLoading(true);
+    setError('');
 
-    // إظهار رسالة نجاح
-    alert('تم إرسال الشكوى بنجاح!');
-    
-    // العودة لصفحة الشكاوى
-    setActiveTab('complaints');
-    
-    // إعادة تعيين النموذج
+    try {
+      const complaintData = {
+        department_id: parseInt(formData.department_id),
+        subject: formData.subject.trim(),
+        description: formData.description.trim(),
+        priority: formData.priority
+      };
+
+      console.log('إرسال شكوى جديدة:', complaintData);
+
+      const result = await complaintsService.createComplaint(complaintData);
+
+      if (result.success) {
+        // إظهار رسالة نجاح
+        setError('');
+        alert(`تم إرسال الشكوى بنجاح!\nرقم الشكوى: ${result.data.complaint.id}`);
+        
+        // تحديث قائمة الشكاوى
+        if (onComplaintCreated) {
+          onComplaintCreated();
+        }
+        
+        // العودة لصفحة الشكاوى
+        setActiveTab('complaints');
+        
+        // إعادة تعيين النموذج
+        resetForm();
+      } else {
+        setError(result.error);
+        handleAppError(result.error);
+      }
+    } catch (error) {
+      console.error('خطأ في إرسال الشكوى:', error);
+      setError('حدث خطأ غير متوقع، يرجى المحاولة مرة أخرى');
+      handleAppError('حدث خطأ في إرسال الشكوى');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const resetForm = () => {
     setFormData({
-      department: '',
+      department_id: '',
       subject: '',
       description: '',
+      priority: 'متوسط',
       attachments: []
     });
     setStep(1);
+    setError('');
   };
 
   const handleFileUpload = (event) => {
     const files = Array.from(event.target.files);
-    // في النسخة الحقيقية، سنرسل الملفات للسيرفر
+    // في المستقبل، سنرسل الملفات للسيرفر
     setFormData({
       ...formData,
       attachments: [...formData.attachments, ...files.map(file => ({
@@ -119,30 +152,60 @@ const NewComplaintForm = ({ setActiveTab }) => {
     });
   };
 
+  const getDepartmentName = (id) => {
+    const dept = departments.find(d => d.id === parseInt(id));
+    return dept ? dept.name : '';
+  };
+
+  const isFormValid = formData.department_id && formData.subject.trim() && formData.description.trim();
+
   return (
     <div className={formStyles.container}>
       <div className={formStyles.card}>
         <h2 className={formStyles.title}>شكوى جديدة</h2>
         
+        {error && (
+          <div className={formStyles.errorAlert}>
+            {error}
+          </div>
+        )}
+        
         {step === 1 ? (
           <div className={formStyles.form}>
             <div className={formStyles.inputGroup}>
               <label className={formStyles.label}>القسم *</label>
-              <select
-                value={formData.department}
-                onChange={(e) => setFormData({...formData, department: e.target.value})}
-                className={formStyles.select}
-                required
-              >
-                <option value="">اختر القسم</option>
-                {data.departments.map(dept => {
-                  const availableStaff = data.staff.filter(s => s.department === dept);
-                  return (
-                    <option key={dept} value={dept}>
-                      {dept} ({availableStaff.length} موظف متاح)
+              {loadingDepartments ? (
+                <div className="flex items-center justify-center py-4">
+                  <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
+                  <span className="mr-2">جاري تحميل الأقسام...</span>
+                </div>
+              ) : (
+                <select
+                  value={formData.department_id}
+                  onChange={(e) => setFormData({...formData, department_id: e.target.value})}
+                  className={formStyles.select}
+                  required
+                >
+                  <option value="">اختر القسم</option>
+                  {departments.map(dept => (
+                    <option key={dept.id} value={dept.id}>
+                      {dept.name}
                     </option>
-                  );
-                })}
+                  ))}
+                </select>
+              )}
+            </div>
+
+            <div className={formStyles.inputGroup}>
+              <label className={formStyles.label}>الأولوية</label>
+              <select
+                value={formData.priority}
+                onChange={(e) => setFormData({...formData, priority: e.target.value})}
+                className={formStyles.select}
+              >
+                <option value="منخفض">منخفض</option>
+                <option value="متوسط">متوسط</option>
+                <option value="عالي">عالي</option>
               </select>
             </div>
 
@@ -222,8 +285,8 @@ const NewComplaintForm = ({ setActiveTab }) => {
             <div className={formStyles.buttonGroup}>
               <button
                 onClick={() => setStep(2)}
-                disabled={!formData.department || !formData.subject || !formData.description}
-                className={`${formStyles.button} disabled:bg-gray-400 disabled:cursor-not-allowed`}
+                disabled={!isFormValid}
+                className={isFormValid ? formStyles.button : formStyles.buttonDisabled}
               >
                 التالي - مراجعة الشكوى
               </button>
@@ -242,7 +305,11 @@ const NewComplaintForm = ({ setActiveTab }) => {
             <div className={formStyles.previewCard}>
               <div className={formStyles.previewItem}>
                 <span className={formStyles.previewLabel}>القسم:</span>
-                <span className={formStyles.previewValue}> {formData.department}</span>
+                <span className={formStyles.previewValue}> {getDepartmentName(formData.department_id)}</span>
+              </div>
+              <div className={formStyles.previewItem}>
+                <span className={formStyles.previewLabel}>الأولوية:</span>
+                <span className={formStyles.previewValue}> {formData.priority}</span>
               </div>
               <div className={formStyles.previewItem}>
                 <span className={formStyles.previewLabel}>الموضوع:</span>
@@ -279,17 +346,25 @@ const NewComplaintForm = ({ setActiveTab }) => {
                   <h4 className={formStyles.disclaimerTitle}>إقرار وموافقة</h4>
                   <p className={formStyles.disclaimerText}>
                     أقر بأن المعلومات المقدمة صحيحة وأوافق على معالجة هذه الشكوى وفقاً لسياسات المستشفى.
-                    سيتم تعيين الشكوى تلقائياً للموظف المناسب وستحصل على رقم متابعة.
+                    سيتم تعيين الشكوى للموظف المناسب وستحصل على رقم متابعة.
                   </p>
                 </div>
               </div>
             </div>
 
             <div className={formStyles.buttonGroup}>
-              <button onClick={handleSubmit} className={formStyles.buttonSuccess}>
-                إرسال الشكوى نهائياً
+              <button 
+                onClick={handleSubmit} 
+                disabled={loading}
+                className={loading ? formStyles.buttonDisabled : formStyles.buttonSuccess}
+              >
+                {loading ? 'جاري الإرسال...' : 'إرسال الشكوى نهائياً'}
               </button>
-              <button onClick={() => setStep(1)} className={formStyles.buttonSecondary}>
+              <button 
+                onClick={() => setStep(1)} 
+                disabled={loading}
+                className={formStyles.buttonSecondary}
+              >
                 تعديل
               </button>
             </div>
