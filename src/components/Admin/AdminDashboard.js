@@ -5,13 +5,14 @@ import DepartmentManagement from './DepartmentManagement';
 import ComplaintsManagement from './ComplaintsManagement';
 import EscalationSettings from './EscalationSettings';
 import SystemLogs from './SystemLogs';
-import { complaintsService } from '../../services/api';
+import { complaintsService, departmentsService } from '../../services/api';
 import { useAppContext } from '../../App';
 
 const AdminDashboard = () => {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [selectedComplaint, setSelectedComplaint] = useState(null);
   const [complaints, setComplaints] = useState([]);
+  const [departments, setDepartments] = useState([]);
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -77,6 +78,7 @@ const AdminDashboard = () => {
   // جلب البيانات عند تحميل المكون
   useEffect(() => {
     fetchDashboardData();
+    fetchDepartments();
   }, []);
 
   const fetchDashboardData = async () => {
@@ -111,6 +113,39 @@ const AdminDashboard = () => {
     }
   };
 
+  // دالة جلب الأقسام الديناميكية
+  const fetchDepartments = async () => {
+    try {
+      const result = await departmentsService.getDepartments();
+      if (result.success) {
+        setDepartments(result.data.departments || []);
+        console.log('تم جلب الأقسام بنجاح:', result.data.departments);
+      } else {
+        console.warn('فشل في جلب الأقسام:', result.error);
+        // استخدام الأقسام الافتراضية كنسخة احتياطية
+        setDepartments([
+          { id: 1, name: 'أشعة' },
+          { id: 2, name: 'طوارئ' },
+          { id: 3, name: 'مواعيد' },
+          { id: 4, name: 'المختبر' },
+          { id: 5, name: 'الصيدلية' },
+          { id: 6, name: 'الاستقبال' }
+        ]);
+      }
+    } catch (error) {
+      console.error('خطأ في جلب الأقسام:', error);
+      // استخدام الأقسام الافتراضية في حالة الخطأ
+      setDepartments([
+        { id: 1, name: 'أشعة' },
+        { id: 2, name: 'طوارئ' },
+        { id: 3, name: 'مواعيد' },
+        { id: 4, name: 'المختبر' },
+        { id: 5, name: 'الصيدلية' },
+        { id: 6, name: 'الاستقبال' }
+      ]);
+    }
+  };
+
   // حساب الشكاوى المتأخرة (أكثر من 72 ساعة)
   const pendingEscalation = complaints.filter(c => {
     const hoursSinceCreated = (new Date() - new Date(c.created_at)) / (1000 * 60 * 60);
@@ -132,18 +167,18 @@ const AdminDashboard = () => {
     return colors[status] || 'bg-gray-500';
   };
 
-  // حساب إحصائيات الأقسام
+  // حساب إحصائيات الأقسام الديناميكية
   const departmentStats = () => {
-    const departments = ['أشعة', 'طوارئ', 'مواعيد', 'المختبر', 'الصيدلية', 'الاستقبال'];
-    
     return departments.map(dept => {
-      const deptComplaints = complaints.filter(c => c.department_name === dept);
+      const deptComplaints = complaints.filter(c => 
+        c.department_name === dept.name || c.department_id === dept.id
+      );
       const percentage = complaints.length > 0 ? (deptComplaints.length / complaints.length) * 100 : 0;
       
       return {
-        name: dept,
+        name: dept.name,
         count: deptComplaints.length,
-        percentage
+        percentage: percentage
       };
     });
   };
@@ -281,6 +316,9 @@ const AdminDashboard = () => {
                     </div>
                   </div>
                 ))}
+                {departments.length === 0 && (
+                  <p className="text-gray-500 text-center py-4">جاري تحميل الأقسام...</p>
+                )}
               </div>
             </div>
           </div>

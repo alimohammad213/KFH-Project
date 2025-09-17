@@ -7,6 +7,7 @@ const NewComplaintForm = ({ setActiveTab, onComplaintCreated }) => {
   const [formData, setFormData] = useState({
     department_id: '',
     subject: '',
+    customSubject: '',
     description: '',
     priority: 'متوسط',
     attachments: []
@@ -50,6 +51,85 @@ const NewComplaintForm = ({ setActiveTab, onComplaintCreated }) => {
     successAlert: "bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-lg mb-4"
   };
 
+  // قائمة مواضيع الشكاوى المصنفة حسب الأقسام
+  const complaintSubjects = {
+    "عام": [
+      "تأخير في المواعيد",
+      "سوء تعامل من الموظفين",
+      "نظافة المرافق",
+      "أوقات الانتظار الطويلة",
+      "عدم وضوح المعلومات",
+      "مشاكل في الفوترة",
+      "صعوبة في الوصول للخدمات",
+      "عدم توفر الخدمة المطلوبة"
+    ],
+    "أشعة": [
+      "تأخير في موعد الأشعة",
+      "جودة صور الأشعة غير واضحة",
+      "عدم شرح الإجراءات بوضوح",
+      "مشاكل في التحضير للأشعة",
+      "عدم توفر النتائج في الوقت المحدد",
+      "سوء تعامل فني الأشعة",
+      "عدم الراحة أثناء الفحص",
+      "مشاكل في الحجز"
+    ],
+    "طوارئ": [
+      "طول فترة الانتظار",
+      "عدم إعطاء الأولوية المناسبة",
+      "سوء تعامل طاقم الطوارئ",
+      "عدم وضوح التشخيص",
+      "نقص في المعدات الطبية",
+      "عدم توفر الأسرة",
+      "مشاكل في الإسعافات الأولية",
+      "عدم المتابعة المناسبة"
+    ],
+    "مواعيد": [
+      "صعوبة في الحجز",
+      "إلغاء المواعيد بدون إشعار",
+      "تأخير الطبيب عن الموعد",
+      "عدم توفر المواعيد المناسبة",
+      "مشاكل في نظام الحجز الإلكتروني",
+      "عدم الالتزام بالمواعيد المحددة",
+      "صعوبة في تغيير الموعد",
+      "عدم وضوح تعليمات الموعد"
+    ],
+    "المختبر": [
+      "تأخير في نتائج التحاليل",
+      "عدم دقة النتائج",
+      "سوء تعامل فني المختبر",
+      "مشاكل في أخذ العينات",
+      "عدم شرح التحضير للتحليل",
+      "فقدان العينات",
+      "مشاكل في التحاليل المستعجلة",
+      "عدم توفر بعض التحاليل"
+    ],
+    "الصيدلية": [
+      "عدم توفر الدواء",
+      "تأخير في صرف الدواء",
+      "خطأ في الدواء المصروف",
+      "عدم وضوح تعليمات الاستخدام",
+      "انتهاء صلاحية الدواء",
+      "سوء تعامل الصيدلي",
+      "مشاكل في التأمين الطبي",
+      "عدم توفر البدائل"
+    ],
+    "الاستقبال": [
+      "سوء تعامل موظف الاستقبال",
+      "طول فترة الانتظار للتسجيل",
+      "مشاكل في البيانات الشخصية",
+      "عدم وضوح المعلومات المقدمة",
+      "مشاكل في نظام التأمين",
+      "صعوبة في الإجراءات",
+      "عدم توجيه المريض للمكان الصحيح",
+      "مشاكل في الفوترة"
+    ]
+  };
+
+  // دالة للحصول على مواضيع القسم
+  const getSubjectsForDepartment = (departmentName) => {
+    return complaintSubjects[departmentName] || complaintSubjects["عام"];
+  };
+
   // جلب الأقسام عند تحميل المكون
   useEffect(() => {
     fetchDepartments();
@@ -58,7 +138,31 @@ const NewComplaintForm = ({ setActiveTab, onComplaintCreated }) => {
   const fetchDepartments = async () => {
     try {
       setLoadingDepartments(true);
-      // استخدام أقسام ثابتة إذا لم يكن لدينا API للأقسام
+      
+      // جلب الأقسام من الـ API
+      const result = await departmentsService.getDepartments();
+      
+      if (result.success) {
+        setDepartments(result.data.departments || []);
+        console.log('تم جلب الأقسام بنجاح:', result.data.departments);
+      } else {
+        console.error('خطأ في جلب الأقسام:', result.error);
+        // في حالة فشل جلب الأقسام، استخدم القائمة الافتراضية
+        const defaultDepartments = [
+          { id: 1, name: 'أشعة' },
+          { id: 2, name: 'طوارئ' },
+          { id: 3, name: 'مواعيد' },
+          { id: 4, name: 'المختبر' },
+          { id: 5, name: 'الصيدلية' },
+          { id: 6, name: 'الاستقبال' }
+        ];
+        setDepartments(defaultDepartments);
+        handleAppError('حدث خطأ في جلب الأقسام، سيتم استخدام القائمة الافتراضية');
+      }
+    } catch (error) {
+      console.error('خطأ في جلب الأقسام:', error);
+      
+      // في حالة الخطأ، استخدم القائمة الافتراضية
       const defaultDepartments = [
         { id: 1, name: 'أشعة' },
         { id: 2, name: 'طوارئ' },
@@ -68,9 +172,7 @@ const NewComplaintForm = ({ setActiveTab, onComplaintCreated }) => {
         { id: 6, name: 'الاستقبال' }
       ];
       setDepartments(defaultDepartments);
-    } catch (error) {
-      console.error('خطأ في جلب الأقسام:', error);
-      handleAppError('حدث خطأ في جلب الأقسام');
+      handleAppError('حدث خطأ في الاتصال، سيتم استخدام الأقسام الافتراضية');
     } finally {
       setLoadingDepartments(false);
     }
@@ -83,7 +185,7 @@ const NewComplaintForm = ({ setActiveTab, onComplaintCreated }) => {
     try {
       const complaintData = {
         department_id: parseInt(formData.department_id),
-        subject: formData.subject.trim(),
+        subject: formData.subject === "أخرى" ? formData.customSubject.trim() : formData.subject,
         description: formData.description.trim(),
         priority: formData.priority
       };
@@ -124,6 +226,7 @@ const NewComplaintForm = ({ setActiveTab, onComplaintCreated }) => {
     setFormData({
       department_id: '',
       subject: '',
+      customSubject: '',
       description: '',
       priority: 'متوسط',
       attachments: []
@@ -157,7 +260,14 @@ const NewComplaintForm = ({ setActiveTab, onComplaintCreated }) => {
     return dept ? dept.name : '';
   };
 
-  const isFormValid = formData.department_id && formData.subject.trim() && formData.description.trim();
+  const isFormValid = () => {
+    const hasValidSubject = formData.subject && 
+      (formData.subject !== "أخرى" || (formData.customSubject && formData.customSubject.trim()));
+    
+    return formData.department_id && 
+           hasValidSubject && 
+           formData.description.trim();
+  };
 
   return (
     <div className={formStyles.container}>
@@ -182,7 +292,14 @@ const NewComplaintForm = ({ setActiveTab, onComplaintCreated }) => {
               ) : (
                 <select
                   value={formData.department_id}
-                  onChange={(e) => setFormData({...formData, department_id: e.target.value})}
+                  onChange={(e) => {
+                    setFormData({
+                      ...formData, 
+                      department_id: e.target.value,
+                      subject: '', // إعادة تعيين الموضوع عند تغيير القسم
+                      customSubject: ''
+                    });
+                  }}
                   className={formStyles.select}
                   required
                 >
@@ -197,6 +314,64 @@ const NewComplaintForm = ({ setActiveTab, onComplaintCreated }) => {
             </div>
 
             <div className={formStyles.inputGroup}>
+              <label className={formStyles.label}>موضوع الشكوى *</label>
+              <select
+                value={formData.subject}
+                onChange={(e) => setFormData({
+                  ...formData, 
+                  subject: e.target.value,
+                  customSubject: e.target.value === "أخرى" ? formData.customSubject : ''
+                })}
+                className={formStyles.select}
+                required
+                disabled={!formData.department_id}
+              >
+                <option value="">
+                  {formData.department_id ? "اختر موضوع الشكوى" : ""}
+                </option>
+                {formData.department_id && (() => {
+                  // الحصول على اسم القسم المختار
+                  const selectedDept = departments.find(d => d.id === parseInt(formData.department_id));
+                  const deptName = selectedDept ? selectedDept.name : null;
+                  
+                  // الحصول على المواضيع المناسبة
+                  const subjects = deptName ? getSubjectsForDepartment(deptName) : complaintSubjects["عام"];
+                  
+                  return subjects.map((subject, index) => (
+                    <option key={index} value={subject}>
+                      {subject}
+                    </option>
+                  ));
+                })()}
+                
+                {formData.department_id && (
+                  <option value="أخرى">أخرى </option>
+                )}
+              </select>
+              
+              {/* إضافة حقل نص إذا اختار "أخرى" */}
+              {formData.subject === "أخرى" && (
+                <div className="mt-2">
+                  <input
+                    type="text"
+                    value={formData.customSubject || ''}
+                    onChange={(e) => setFormData({
+                      ...formData, 
+                      customSubject: e.target.value
+                    })}
+                    className={formStyles.input}
+                    placeholder="اكتب موضوع الشكوى"
+                    required
+                    maxLength="255"
+                  />
+                  <small className="text-gray-500">
+                    {(formData.customSubject || '').length}/255 حرف
+                  </small>
+                </div>
+              )}
+            </div>
+
+            <div className={formStyles.inputGroup}>
               <label className={formStyles.label}>الأولوية</label>
               <select
                 value={formData.priority}
@@ -207,22 +382,6 @@ const NewComplaintForm = ({ setActiveTab, onComplaintCreated }) => {
                 <option value="متوسط">متوسط</option>
                 <option value="عالي">عالي</option>
               </select>
-            </div>
-
-            <div className={formStyles.inputGroup}>
-              <label className={formStyles.label}>موضوع الشكوى *</label>
-              <input
-                type="text"
-                value={formData.subject}
-                onChange={(e) => setFormData({...formData, subject: e.target.value})}
-                className={formStyles.input}
-                placeholder="اكتب موضوع الشكوى"
-                required
-                maxLength="255"
-              />
-              <small className="text-gray-500">
-                {formData.subject.length}/255 حرف
-              </small>
             </div>
 
             <div className={formStyles.inputGroup}>
@@ -285,8 +444,8 @@ const NewComplaintForm = ({ setActiveTab, onComplaintCreated }) => {
             <div className={formStyles.buttonGroup}>
               <button
                 onClick={() => setStep(2)}
-                disabled={!isFormValid}
-                className={isFormValid ? formStyles.button : formStyles.buttonDisabled}
+                disabled={!isFormValid()}
+                className={isFormValid() ? formStyles.button : formStyles.buttonDisabled}
               >
                 التالي - مراجعة الشكوى
               </button>
@@ -308,12 +467,14 @@ const NewComplaintForm = ({ setActiveTab, onComplaintCreated }) => {
                 <span className={formStyles.previewValue}> {getDepartmentName(formData.department_id)}</span>
               </div>
               <div className={formStyles.previewItem}>
-                <span className={formStyles.previewLabel}>الأولوية:</span>
-                <span className={formStyles.previewValue}> {formData.priority}</span>
+                <span className={formStyles.previewLabel}>الموضوع:</span>
+                <span className={formStyles.previewValue}>
+                  {formData.subject === "أخرى" ? formData.customSubject : formData.subject}
+                </span>
               </div>
               <div className={formStyles.previewItem}>
-                <span className={formStyles.previewLabel}>الموضوع:</span>
-                <span className={formStyles.previewValue}> {formData.subject}</span>
+                <span className={formStyles.previewLabel}>الأولوية:</span>
+                <span className={formStyles.previewValue}> {formData.priority}</span>
               </div>
               <div className={formStyles.previewItem}>
                 <span className={formStyles.previewLabel}>الوصف:</span>

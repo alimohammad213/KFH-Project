@@ -163,7 +163,7 @@ const RegisterScreen = () => {
             <Plus className="w-8 h-8 text-white" />
           </div>
           <h1 className={registerStyles.title}>إنشاء حساب مريض جديد</h1>
-          <p className="text-gray-600 mt-2">مستشفى المملكة</p>
+          <p className="text-gray-600 mt-2">مستشفى </p>
         </div>
 
         {successMessage && (

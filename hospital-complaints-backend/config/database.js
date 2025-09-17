@@ -212,127 +212,163 @@ const createTables = async () => {
 };
 
 // Insert initial data
+// Insert initial data - محسن لمنع فقدان البيانات
 const insertInitialData = async () => {
   const client = await pool.connect();
   
   try {
-    // Insert departments
-    const departments = ['أشعة', 'طوارئ', 'مواعيد', 'المختبر', 'الصيدلية', 'الاستقبال'];
+    // 🔍 تحقق من وجود أقسام مسبقاً
+    const existingDepts = await client.query('SELECT COUNT(*) FROM departments');
+    const departmentCount = parseInt(existingDepts.rows[0].count);
     
-    for (const dept of departments) {
-      await client.query(
-        'INSERT INTO departments (name) VALUES ($1) ON CONFLICT (name) DO NOTHING',
-        [dept]
-      );
-    }
-    
-    // Insert users with hashed passwords
-    const saltRounds = parseInt(process.env.BCRYPT_ROUNDS) || 12;
-    
-    const users = [
-      {
-        id: '123456789',
-        name: 'أحمد محمد',
-        phone: '0501234567',
-        password: '123456',
-        role: 'patient',
-        verified: true
-      },
-      {
-        id: 'staff1',
-        name: 'د. سارة أحمد',
-        username: 'sara.ahmed',
-        password: 'staff123',
-        role: 'staff',
-        level: 1,
-        department_id: 1
-      },
-      {
-        id: 'staff2',
-        name: 'أ. محمد علي',
-        username: 'mohamed.ali',
-        password: 'staff123',
-        role: 'staff',
-        level: 1,
-        department_id: 2
-      },
-      {
-        id: 'super1',
-        name: 'د. خالد الشمري',
-        username: 'khalid.supervisor',
-        password: 'super123',
-        role: 'supervisor',
-        level: 2,
-        department_id: 1
-      },
-      {
-        id: 'super2',
-        name: 'د. فاطمة العتيبي',
-        username: 'fatima.supervisor',
-        password: 'super123',
-        role: 'supervisor',
-        level: 2,
-        department_id: 2
-      },
-      {
-        id: 'dm1',
-        name: 'د. نورا المالكي',
-        username: 'nora.manager',
-        password: 'mgr123',
-        role: 'manager',
-        level: 3,
-        department_id: 1
-      },
-      {
-        id: 'dm2',
-        name: 'د. سعد الغامدي',
-        username: 'saad.manager',
-        password: 'mgr123',
-        role: 'manager',
-        level: 3,
-        department_id: 2
-      },
-      {
-        id: 'admin1',
-        username: 'admin',
-        password: 'admin123',
-        name: 'مدير النظام',
-        role: 'admin',
-        level: 4
-      }
-    ];
-    
-    // Hash passwords and insert users
-    for (const user of users) {
-      const hashedPassword = await bcrypt.hash(user.password, saltRounds);
+    if (departmentCount > 0) {
+      console.log(`Found ${departmentCount} existing departments, skipping initial department creation`);
+    } else {
+      // إدراج الأقسام الافتراضية فقط في حالة عدم وجود أقسام
+      console.log('No departments found, creating initial departments...');
+      const departments = ['أشعة', 'طوارئ', 'مواعيد', 'المختبر', 'الصيدلية', 'الاستقبال'];
       
-      await client.query(`
-        INSERT INTO users (id, name, username, password_hash, phone, role, level, department_id, verified)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-        ON CONFLICT (id) DO NOTHING
-      `, [
-        user.id,
-        user.name,
-        user.username || null,
-        hashedPassword,
-        user.phone || null,
-        user.role,
-        user.level || 1,
-        user.department_id || null,
-        user.verified || false
-      ]);
+      for (const dept of departments) {
+        await client.query(
+          'INSERT INTO departments (name) VALUES ($1) ON CONFLICT (name) DO NOTHING',
+          [dept]
+        );
+      }
+      console.log('Initial departments created successfully');
     }
     
-    // Insert escalation settings
-    for (let i = 1; i <= departments.length; i++) {
-      await client.query(`
-        INSERT INTO escalation_settings (department_id, escalation_hours)
-        VALUES ($1, $2)
-        ON CONFLICT DO NOTHING
-      `, [i, 72]);
+    // 🔍 تحقق من وجود مستخدمين مسبقاً
+    const existingUsers = await client.query('SELECT COUNT(*) FROM users');
+    const userCount = parseInt(existingUsers.rows[0].count);
+    
+    if (userCount > 0) {
+      console.log(`Found ${userCount} existing users, skipping initial user creation`);
+    } else {
+      // إدراج المستخدمين الافتراضيين فقط في حالة عدم وجودهم
+      console.log('No users found, creating initial users...');
+      const saltRounds = parseInt(process.env.BCRYPT_ROUNDS) || 12;
+      
+      const users = [
+        {
+          id: '123456789',
+          name: 'أحمد محمد',
+          phone: '0501234567',
+          password: '123456',
+          role: 'patient',
+          verified: true
+        },
+        {
+          id: 'staff1',
+          name: 'د. سارة أحمد',
+          username: 'sara.ahmed',
+          password: 'staff123',
+          role: 'staff',
+          level: 1,
+          department_id: 1
+        },
+        {
+          id: 'staff2',
+          name: 'أ. محمد علي',
+          username: 'mohamed.ali',
+          password: 'staff123',
+          role: 'staff',
+          level: 1,
+          department_id: 2
+        },
+        {
+          id: 'super1',
+          name: 'د. خالد الشمري',
+          username: 'khalid.supervisor',
+          password: 'super123',
+          role: 'supervisor',
+          level: 2,
+          department_id: 1
+        },
+        {
+          id: 'super2',
+          name: 'د. فاطمة العتيبي',
+          username: 'fatima.supervisor',
+          password: 'super123',
+          role: 'supervisor',
+          level: 2,
+          department_id: 2
+        },
+        {
+          id: 'dm1',
+          name: 'د. نورا المالكي',
+          username: 'nora.manager',
+          password: 'mgr123',
+          role: 'manager',
+          level: 3,
+          department_id: 1
+        },
+        {
+          id: 'dm2',
+          name: 'د. سعد الغامدي',
+          username: 'saad.manager',
+          password: 'mgr123',
+          role: 'manager',
+          level: 3,
+          department_id: 2
+        },
+        {
+          id: 'admin1',
+          username: 'admin',
+          password: 'admin123',
+          name: 'مدير النظام',
+          role: 'admin',
+          level: 4
+        }
+      ];
+      
+      // Hash passwords and insert users
+      for (const user of users) {
+        const hashedPassword = await bcrypt.hash(user.password, saltRounds);
+        
+        await client.query(`
+          INSERT INTO users (id, name, username, password_hash, phone, role, level, department_id, verified)
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+          ON CONFLICT (id) DO NOTHING
+        `, [
+          user.id,
+          user.name,
+          user.username || null,
+          hashedPassword,
+          user.phone || null,
+          user.role,
+          user.level || 1,
+          user.department_id || null,
+          user.verified || false
+        ]);
+      }
+      console.log('Initial users created successfully');
     }
     
-    console.log('Initial data inserted successfully');
+    // 🔍 تحقق من وجود إعدادات التصعيد
+    const existingSettings = await client.query('SELECT COUNT(*) FROM escalation_settings');
+    const settingsCount = parseInt(existingSettings.rows[0].count);
+    
+    if (settingsCount === 0) {
+      console.log('Creating escalation settings...');
+      // الحصول على عدد الأقسام الحالية
+      const currentDepts = await client.query('SELECT id FROM departments ORDER BY id');
+      
+      for (const dept of currentDepts.rows) {
+        await client.query(`
+          INSERT INTO escalation_settings (department_id, escalation_hours)
+          VALUES ($1, $2)
+          ON CONFLICT DO NOTHING
+        `, [dept.id, 72]);
+      }
+      console.log('Escalation settings created successfully');
+    } else {
+      console.log(`Found ${settingsCount} existing escalation settings`);
+    }
+    
+    console.log('✅ Initial data check completed successfully');
+  } catch (error) {
+    console.error('❌ Error in insertInitialData:', error);
+    throw error;
   } finally {
     client.release();
   }

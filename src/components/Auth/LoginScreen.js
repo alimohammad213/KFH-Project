@@ -3,6 +3,8 @@ import { FileText } from 'lucide-react';
 import { useAppContext } from '../../App';
 import { authService } from '../../services/api';
 
+// Logo image moved inside the component's return statement below
+
 const LoginScreen = () => {
   const [formData, setFormData] = useState({ username: '', password: '' });
   const [error, setError] = useState('');
@@ -11,12 +13,14 @@ const LoginScreen = () => {
   const { setCurrentUser, setCurrentView } = useAppContext();
 
   const loginScreenStyles = {
-    container: "min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4",
+    container: "min-h-screen bg-gradient-to-br from-blue-500 to-indigo-1000 flex items-center justify-center p-4",
     card: "bg-white rounded-2xl shadow-xl p-8 w-full max-w-md fade-in",
     header: "text-center mb-8",
-    logo: "mx-auto w-16 h-16 bg-blue-600 rounded-full flex items-center justify-center mb-4",
     title: "text-2xl font-bold text-gray-900",
     subtitle: "text-gray-600 mt-2",
+    // Use the provided URL as the logo
+    logo: "flex items-center justify-center mb-4",
+    logoImgUrl: "public/____jeddah_second_health_cluster_logo.png",
     form: "space-y-4",
     inputGroup: "space-y-2",
     label: "block text-sm font-medium text-gray-700",
@@ -106,8 +110,11 @@ const LoginScreen = () => {
           <div className={loginScreenStyles.logo}>
             <FileText className="w-8 h-8 text-white" />
           </div>
+          <div className="image-bg10">
+            <img src="/____jeddah_second_health_cluster_logo.png" alt="Background"  />
+          </div>
           <h1 className={loginScreenStyles.title}>نظام إدارة الشكاوى</h1>
-          <p className={loginScreenStyles.subtitle}>مستشفى المملكة</p>
+          <p className={loginScreenStyles.subtitle}>مستشفى </p>
           <p className="text-sm text-gray-500 mt-1">دخول موحد لجميع المستخدمين</p>
         </div>
 
