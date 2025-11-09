@@ -1,16 +1,29 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Settings, LogOut, Bell, Home, FileText, Users, AlertCircle, Clock, CheckCircle, ChevronRight } from 'lucide-react';
 import StaffManagement from './StaffManagement';
 import DepartmentManagement from './DepartmentManagement';
 import ComplaintsManagement from './ComplaintsManagement';
 import EscalationSettings from './EscalationSettings';
 import SystemLogs from './SystemLogs';
+import axios from 'axios';
 
-const AdminDashboard = ({ currentUser, logout, data, setData }) => {
+const AdminDashboard = ({ currentUser, logout}) => {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [selectedComplaint, setSelectedComplaint] = useState(null);
 
-  const allComplaints = data.complaints;
+  const [allComplaints, setAllComplaints] = useState([]);
+  const [departments, setDepartments] = useState([])
+  useEffect(() => {
+    // جلب الشكاوى
+    axios.get("http://localhost:3000/complaints")
+      .then(res => setAllComplaints(res.data))
+      .catch(err => console.error("Error fetching complaints:", err));
+
+    // جلب الأقسام
+    axios.get("http://localhost:3000/departments")
+      .then(res => setDepartments(res.data))
+      .catch(err => console.error("Error fetching departments:", err));
+  }, []);
   const pendingEscalation = allComplaints.filter(c => {
     const hoursSinceCreated = (new Date() - new Date(c.createdAt)) / (1000 * 60 * 60);
     return hoursSinceCreated > 72 && c.status !== 'تم الحل' && c.status !== 'مرفوضة' && !c.escalated;
@@ -161,7 +174,7 @@ const AdminDashboard = ({ currentUser, logout, data, setData }) => {
         <div className={adminStyles.quickCard}>
           <h3 className={adminStyles.quickTitle}>إحصائيات الأقسام</h3>
           <div className={adminStyles.deptStats}>
-            {data.departments.map(dept => {
+            {departments.map(dept =>{
               const deptComplaints = allComplaints.filter(c => c.department === dept);
               const percentage = allComplaints.length > 0 ? (deptComplaints.length / allComplaints.length) * 100 : 0;
               return (
