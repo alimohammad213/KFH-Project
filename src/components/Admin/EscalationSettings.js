@@ -1,9 +1,13 @@
 import React, { useState } from 'react';
 import { AlertCircle, Clock, Settings } from 'lucide-react';
-import { formatDateTime } from '../../utils/helpers';
+import { complaintsService } from '../../services/api';
+import { useAppContext } from '../../App';
 
-const EscalationSettings = ({ data, setData, pendingEscalation }) => {
+const EscalationSettings = ({ pendingEscalation, complaints, onRefresh }) => {
   const [escalationHours, setEscalationHours] = useState(72);
+  const [loading, setLoading] = useState(false);
+
+  const { handleAppError } = useAppContext();
 
   const escalationStyles = {
     container: "fade-in",
@@ -22,62 +26,92 @@ const EscalationSettings = ({ data, setData, pendingEscalation }) => {
     pendingItem: "border border-red-200 rounded-lg p-4 bg-red-50",
     pendingHeader: "flex justify-between items-start",
     pendingInfo: "space-y-2",
-    pendingTitle: "font-semibold",
     pendingMeta: "text-sm text-gray-600",
     pendingAlert: "text-sm text-red-600 font-medium",
     escalateBtn: "bg-red-600 text-white px-3 py-1 rounded text-sm hover:bg-red-700",
+    escalateBtnDisabled: "bg-gray-400 text-white px-3 py-1 rounded text-sm cursor-not-allowed",
     statsGrid: "grid grid-cols-1 md:grid-cols-3 gap-4 mb-6",
     statCard: "bg-white p-4 rounded-lg shadow border-l-4",
     statNumber: "text-2xl font-bold",
     statLabel: "text-gray-600 text-sm"
   };
 
-  const handleEscalation = (complaintId) => {
-    setData(prev => ({
-      ...prev,
-      complaints: prev.complaints.map(complaint => {
-        if (complaint.id === complaintId) {
-          return {
-            ...complaint,
-            escalated: true,
-            status: 'متصعدة',
-            updatedAt: new Date().toISOString(),
-            timeline: [...complaint.timeline, {
-              status: 'متصعدة',
-              timestamp: new Date().toISOString(),
-              note: 'تم تصعيد الشكوى تلقائياً بسبب تجاوز المهلة الزمنية',
-              updatedBy: 'النظام'
-            }]
-          };
+  const handleEscalation = async (complaintId) => {
+    try {
+      setLoading(true);
+      
+      // تحديث حالة الشكوى إلى متصعدة
+      const result = await complaintsService.updateComplaintStatus(complaintId, {
+        status: 'متصعدة',
+        note: 'تم تصعيد الشكوى تلقائياً بسبب تجاوز المهلة الزمنية'
+      });
+      
+      if (result.success) {
+        alert('تم تصعيد الشكوى بنجاح');
+        if (onRefresh) {
+          await onRefresh();
         }
-        return complaint;
-      })
-    }));
-    alert('تم تصعيد الشكوى بنجاح');
+      } else {
+        handleAppError(result.error);
+      }
+    } catch (error) {
+      console.error('خطأ في تصعيد الشكوى:', error);
+      handleAppError('حدث خطأ في تصعيد الشكوى');
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const escalateAll = () => {
+  const escalateAll = async () => {
     if (window.confirm(`هل تريد تصعيد جميع الشكاوى المتأخرة (${pendingEscalation.length} شكوى)؟`)) {
-      pendingEscalation.forEach(complaint => {
-        handleEscalation(complaint.id);
-      });
+      setLoading(true);
+      
+      for (const complaint of pendingEscalation) {
+        try {
+          await complaintsService.updateComplaintStatus(complaint.id, {
+            status: 'متصعدة',
+            note: 'تم تصعيد الشكوى تلقائياً بسبب تجاوز المهلة الزمنية'
+          });
+        } catch (error) {
+          console.error(`فشل في تصعيد الشكوى ${complaint.id}:`, error);
+        }
+      }
+      
+      alert(`تم تصعيد ${pendingEscalation.length} شكوى بنجاح`);
+      
+      if (onRefresh) {
+        await onRefresh();
+      }
+      
+      setLoading(false);
     }
   };
 
   const saveSettings = () => {
-    // In a real app, this would save to backend
     alert(`تم حفظ الإعدادات - المهلة الزمنية: ${escalationHours} ساعة`);
   };
 
-  const escalatedComplaints = data.complaints.filter(c => c.escalated);
-  const avgResolutionTime = data.complaints.filter(c => c.status === 'تم الحل').length > 0 
+  const formatDateTime = (dateString) => {
+    return new Date(dateString).toLocaleString('ar-SA', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  };
+
+  // حساب الإحصائيات
+  const escalatedComplaints = complaints?.filter(c => c.status === 'متصعدة') || [];
+  const resolvedComplaints = complaints?.filter(c => c.status === 'تم الحل') || [];
+  
+  const avgResolutionTime = resolvedComplaints.length > 0 
     ? Math.round(
-        data.complaints
-          .filter(c => c.status === 'تم الحل')
+        resolvedComplaints
           .reduce((acc, c) => {
-            const hours = (new Date(c.updatedAt) - new Date(c.createdAt)) / (1000 * 60 * 60);
+            const hours = (new Date(c.updated_at) - new Date(c.created_at)) / (1000 * 60 * 60);
             return acc + hours;
-          }, 0) / data.complaints.filter(c => c.status === 'تم الحل').length
+          }, 0) / resolvedComplaints.length
       )
     : 0;
 
@@ -119,6 +153,7 @@ const EscalationSettings = ({ data, setData, pendingEscalation }) => {
               className={escalationStyles.input}
               min="1"
               max="168"
+              disabled={loading}
             />
             <p className="text-sm text-gray-500">
               سيتم تصعيد الشكاوى تلقائياً بعد {escalationHours} ساعة من إنشائها
@@ -126,16 +161,21 @@ const EscalationSettings = ({ data, setData, pendingEscalation }) => {
           </div>
           
           <div className="flex gap-4">
-            <button onClick={saveSettings} className={escalationStyles.saveBtn}>
+            <button 
+              onClick={saveSettings} 
+              disabled={loading}
+              className={escalationStyles.saveBtn}
+            >
               حفظ الإعدادات
             </button>
             
             {pendingEscalation.length > 0 && (
               <button 
                 onClick={escalateAll}
-                className="bg-orange-600 text-white px-4 py-2 rounded-lg hover:bg-orange-700"
+                disabled={loading}
+                className={loading ? escalationStyles.escalateBtnDisabled : "bg-orange-600 text-white px-4 py-2 rounded-lg hover:bg-orange-700"}
               >
-                تصعيد جميع الشكاوى المتأخرة ({pendingEscalation.length})
+                {loading ? 'جاري التصعيد...' : `تصعيد جميع الشكاوى المتأخرة (${pendingEscalation.length})`}
               </button>
             )}
           </div>
@@ -165,19 +205,18 @@ const EscalationSettings = ({ data, setData, pendingEscalation }) => {
           <div className={escalationStyles.pendingList}>
             {pendingEscalation.map(complaint => {
               const hoursSinceCreated = Math.floor(
-                (new Date() - new Date(complaint.createdAt)) / (1000 * 60 * 60)
+                (new Date() - new Date(complaint.created_at)) / (1000 * 60 * 60)
               );
-              const assignedStaff = data.staff.find(s => s.id === complaint.assignedTo);
               
               return (
                 <div key={complaint.id} className={escalationStyles.pendingItem}>
                   <div className={escalationStyles.pendingHeader}>
                     <div className={escalationStyles.pendingInfo}>
-                      <h4 className={escalationStyles.pendingTitle}>{complaint.subject}</h4>
+                      <h4 className="font-semibold">{complaint.subject}</h4>
                       <div className={escalationStyles.pendingMeta}>
-                        <p>المريض: {complaint.patientName} | القسم: {complaint.department}</p>
-                        <p>المعين له: {assignedStaff?.name || 'غير معين'}</p>
-                        <p>تاريخ الإنشاء: {formatDateTime(complaint.createdAt)}</p>
+                        <p>المريض: {complaint.patient_name} | القسم: {complaint.department_name}</p>
+                        <p>المعين له: {complaint.assigned_to_name || 'غير معين'}</p>
+                        <p>تاريخ الإنشاء: {formatDateTime(complaint.created_at)}</p>
                       </div>
                       <p className={escalationStyles.pendingAlert}>
                         ⚠️ تجاوزت المهلة بـ {hoursSinceCreated - escalationHours} ساعة
@@ -202,9 +241,10 @@ const EscalationSettings = ({ data, setData, pendingEscalation }) => {
                     
                     <button
                       onClick={() => handleEscalation(complaint.id)}
-                      className={escalationStyles.escalateBtn}
+                      disabled={loading}
+                      className={loading ? escalationStyles.escalateBtnDisabled : escalationStyles.escalateBtn}
                     >
-                      تصعيد الآن
+                      {loading ? 'جاري التصعيد...' : 'تصعيد الآن'}
                     </button>
                   </div>
                 </div>

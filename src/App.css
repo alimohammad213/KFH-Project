@@ -1,3 +1,8 @@
+@import 'tailwindcss/base';
+@import 'tailwindcss/components';
+@import 'tailwindcss/utilities';
+
+/* الستايلات الأساسية */
 * {
   margin: 0;
   padding: 0;
@@ -8,8 +13,20 @@ body {
   font-family: 'Tajawal', Arial, sans-serif;
   direction: rtl;
   text-align: right;
-  background-color: #f8fafc;
+  color: #3750c0;
 }
+.image-bg10 {
+  background-position: center;
+  background-size: contain;
+  background-repeat: no-repeat;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  width: 100%;
+  text-align: center;
+}
+
 
 .app {
   min-height: 100vh;
@@ -17,7 +34,7 @@ body {
 
 /* تنسيقات عامة للتطبيق */
 .fade-in {
-  animation: fadeIn 0.3s ease-in;
+  animation: fadeIn 0.9s ease-in;
 }
 
 @keyframes fadeIn {
@@ -104,4 +121,21 @@ body {
   .no-print {
     display: none !important;
   }
+}
+
+/* إضافات جديدة للمكونات المُحدثة */
+.loading-spinner {
+  @apply animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600;
+}
+
+.tooltip {
+  @apply absolute z-10 px-3 py-2 text-sm bg-gray-900 text-white rounded-lg shadow-lg;
+}
+
+.error-message {
+  @apply text-red-600 text-sm mt-1;
+}
+
+.success-message {
+  @apply text-green-600 text-sm mt-1;
 }

@@ -1,33 +1,23 @@
 import React, { useState, useEffect } from 'react';
-import { Settings, LogOut, Bell, Home, FileText, Users, AlertCircle, Clock, CheckCircle, ChevronRight } from 'lucide-react';
+import { Settings, LogOut, Bell, Home, FileText, Users, AlertCircle, Clock, CheckCircle } from 'lucide-react';
 import StaffManagement from './StaffManagement';
 import DepartmentManagement from './DepartmentManagement';
 import ComplaintsManagement from './ComplaintsManagement';
 import EscalationSettings from './EscalationSettings';
 import SystemLogs from './SystemLogs';
-import axios from 'axios';
+import { complaintsService, departmentsService } from '../../services/api';
+import { useAppContext } from '../../App';
 
-const AdminDashboard = ({ currentUser, logout}) => {
+const AdminDashboard = () => {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [selectedComplaint, setSelectedComplaint] = useState(null);
+  const [complaints, setComplaints] = useState([]);
+  const [departments, setDepartments] = useState([]);
+  const [stats, setStats] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
 
-  const [allComplaints, setAllComplaints] = useState([]);
-  const [departments, setDepartments] = useState([])
-  useEffect(() => {
-    // جلب الشكاوى
-    axios.get("http://localhost:3000/complaints")
-      .then(res => setAllComplaints(res.data))
-      .catch(err => console.error("Error fetching complaints:", err));
-
-    // جلب الأقسام
-    axios.get("http://localhost:3000/departments")
-      .then(res => setDepartments(res.data))
-      .catch(err => console.error("Error fetching departments:", err));
-  }, []);
-  const pendingEscalation = allComplaints.filter(c => {
-    const hoursSinceCreated = (new Date() - new Date(c.createdAt)) / (1000 * 60 * 60);
-    return hoursSinceCreated > 72 && c.status !== 'تم الحل' && c.status !== 'مرفوضة' && !c.escalated;
-  });
+  const { currentUser, logout, handleAppError } = useAppContext();
 
   const adminStyles = {
     container: "min-h-screen bg-gray-50",
@@ -79,245 +69,369 @@ const AdminDashboard = ({ currentUser, logout}) => {
     alertText: "flex-1",
     alertTitle: "font-semibold text-red-800",
     alertDesc: "text-red-700",
-    alertBtn: "btn-danger mr-auto"
+    alertBtn: "btn-danger mr-auto",
+    loadingSpinner: "flex items-center justify-center py-8",
+    spinner: "animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600",
+    errorAlert: "bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg mb-6"
   };
+
+  // جلب البيانات عند تحميل المكون
+  useEffect(() => {
+    fetchDashboardData();
+    fetchDepartments();
+  }, []);
+
+  const fetchDashboardData = async () => {
+    try {
+      setLoading(true);
+      setError('');
+      
+      // جلب جميع الشكاوى والإحصائيات
+      const [complaintsResult, statsResult] = await Promise.all([
+        complaintsService.getComplaints(),
+        complaintsService.getComplaintsStats()
+      ]);
+      
+      if (complaintsResult.success) {
+        setComplaints(complaintsResult.data.complaints || []);
+      } else {
+        throw new Error(complaintsResult.error);
+      }
+      
+      if (statsResult.success) {
+        setStats(statsResult.data.stats);
+      } else {
+        console.warn('فشل في جلب الإحصائيات:', statsResult.error);
+      }
+      
+    } catch (error) {
+      console.error('خطأ في جلب بيانات لوحة التحكم:', error);
+      setError('حدث خطأ في جلب البيانات');
+      handleAppError('حدث خطأ في جلب بيانات لوحة التحكم');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // دالة جلب الأقسام الديناميكية
+  const fetchDepartments = async () => {
+    try {
+      const result = await departmentsService.getDepartments();
+      if (result.success) {
+        setDepartments(result.data.departments || []);
+        console.log('تم جلب الأقسام بنجاح:', result.data.departments);
+      } else {
+        console.warn('فشل في جلب الأقسام:', result.error);
+        // استخدام الأقسام الافتراضية كنسخة احتياطية
+        setDepartments([
+          { id: 1, name: 'أشعة' },
+          { id: 2, name: 'طوارئ' },
+          { id: 3, name: 'مواعيد' },
+          { id: 4, name: 'المختبر' },
+          { id: 5, name: 'الصيدلية' },
+          { id: 6, name: 'الاستقبال' }
+        ]);
+      }
+    } catch (error) {
+      console.error('خطأ في جلب الأقسام:', error);
+      // استخدام الأقسام الافتراضية في حالة الخطأ
+      setDepartments([
+        { id: 1, name: 'أشعة' },
+        { id: 2, name: 'طوارئ' },
+        { id: 3, name: 'مواعيد' },
+        { id: 4, name: 'المختبر' },
+        { id: 5, name: 'الصيدلية' },
+        { id: 6, name: 'الاستقبال' }
+      ]);
+    }
+  };
+
+  // حساب الشكاوى المتأخرة (أكثر من 72 ساعة)
+  const pendingEscalation = complaints.filter(c => {
+    const hoursSinceCreated = (new Date() - new Date(c.created_at)) / (1000 * 60 * 60);
+    return hoursSinceCreated > 72 && 
+           !['تم الحل', 'مرفوضة'].includes(c.status) && 
+           !c.escalated;
+  });
+
+  // دالة للحصول على لون الحالة
+  const getStatusColor = (status) => {
+    const colors = {
+      'جديدة': 'bg-blue-500',
+      'تحت المراجعة': 'bg-yellow-500',
+      'قيد المعالجة': 'bg-orange-500',
+      'تم الحل': 'bg-green-500',
+      'مرفوضة': 'bg-red-500',
+      'متصعدة': 'bg-purple-500'
+    };
+    return colors[status] || 'bg-gray-500';
+  };
+
+  // حساب إحصائيات الأقسام الديناميكية
+  const departmentStats = () => {
+    return departments.map(dept => {
+      const deptComplaints = complaints.filter(c => 
+        c.department_name === dept.name || c.department_id === dept.id
+      );
+      const percentage = complaints.length > 0 ? (deptComplaints.length / complaints.length) * 100 : 0;
+      
+      return {
+        name: dept.name,
+        count: deptComplaints.length,
+        percentage: percentage
+      };
+    });
+  };
+
+  // التحقق من صلاحية الوصول
+  if (!currentUser || currentUser.role !== 'admin') {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <h2 className="text-xl font-bold text-gray-900 mb-2">غير مصرح لك</h2>
+          <p className="text-gray-600 mb-4">يجب أن تكون مدير للوصول لهذه الصفحة</p>
+          <button onClick={logout} className="btn-primary">
+            تسجيل الدخول
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   const Dashboard = () => (
     <div className="fade-in">
       <h2 className={adminStyles.dashboardTitle}>لوحة التحكم الرئيسية</h2>
       
-      {/* Stats */}
-      <div className={adminStyles.statsGrid}>
-        <div className={adminStyles.statCard}>
-          <div className={adminStyles.statInner}>
-            <div className={`${adminStyles.statIcon} bg-blue-100`}>
-              <FileText className="w-6 h-6 text-blue-600" />
-            </div>
-            <div className={adminStyles.statContent}>
-              <p className={adminStyles.statNumber}>{allComplaints.length}</p>
-              <p className={adminStyles.statLabel}>إجمالي الشكاوى</p>
-            </div>
-          </div>
+      {error && (
+        <div className={adminStyles.errorAlert}>
+          {error}
         </div>
-        
-        <div className={adminStyles.statCard}>
-          <div className={adminStyles.statInner}>
-            <div className={`${adminStyles.statIcon} bg-yellow-100`}>
-              <Clock className="w-6 h-6 text-yellow-600" />
-            </div>
-            <div className={adminStyles.statContent}>
-              <p className={adminStyles.statNumber}>
-                {allComplaints.filter(c => c.status === 'جديدة' || c.status === 'تحت المراجعة').length}
-              </p>
-              <p className={adminStyles.statLabel}>قيد المعالجة</p>
-            </div>
-          </div>
-        </div>
-        
-        <div className={adminStyles.statCard}>
-          <div className={adminStyles.statInner}>
-            <div className={`${adminStyles.statIcon} bg-green-100`}>
-              <CheckCircle className="w-6 h-6 text-green-600" />
-            </div>
-            <div className={adminStyles.statContent}>
-              <p className={adminStyles.statNumber}>
-                {allComplaints.filter(c => c.status === 'تم الحل').length}
-              </p>
-              <p className={adminStyles.statLabel}>تم الحل</p>
-            </div>
-          </div>
-        </div>
-        
-        <div className={adminStyles.statCard}>
-          <div className={adminStyles.statInner}>
-            <div className={`${adminStyles.statIcon} bg-red-100`}>
-              <AlertCircle className="w-6 h-6 text-red-600" />
-            </div>
-            <div className={adminStyles.statContent}>
-              <p className={adminStyles.statNumber}>{pendingEscalation.length}</p>
-              <p className={adminStyles.statLabel}>تحتاج تصعيد</p>
-            </div>
-          </div>
-        </div>
-      </div>
+      )}
 
-      {/* Quick Actions */}
-      <div className={adminStyles.quickActionsGrid}>
-        <div className={adminStyles.quickCard}>
-          <h3 className={adminStyles.quickTitle}>الشكاوى الحديثة</h3>
-          <div className={adminStyles.recentList}>
-            {allComplaints.slice(0, 5).map(complaint => (
-              <div key={complaint.id} className={adminStyles.recentItem}>
-                <div className={adminStyles.recentInfo}>
-                  <p className={adminStyles.recentTitle}>
-                    {complaint.subject.substring(0, 30)}...
-                  </p>
-                  <p className={adminStyles.recentMeta}>{complaint.patientName}</p>
+      {loading ? (
+        <div className={adminStyles.loadingSpinner}>
+          <div className={adminStyles.spinner}></div>
+          <span className="mr-2">جاري تحميل البيانات...</span>
+        </div>
+      ) : (
+        <>
+          {/* Stats */}
+          <div className={adminStyles.statsGrid}>
+            <div className={adminStyles.statCard}>
+              <div className={adminStyles.statInner}>
+                <div className={`${adminStyles.statIcon} bg-blue-100`}>
+                  <FileText className="w-6 h-6 text-blue-600" />
                 </div>
-                <span className={`${adminStyles.statusBadge} ${
-                  complaint.status === 'تم الحل' ? 'bg-green-500' :
-                  complaint.status === 'مرفوضة' ? 'bg-red-500' :
-                  complaint.status === 'قيد المعالجة' ? 'bg-orange-500' :
-                  complaint.status === 'تحت المراجعة' ? 'bg-yellow-500' :
-                  'bg-blue-500'
-                }`}>
-                  {complaint.status}
-                </span>
+                <div className={adminStyles.statContent}>
+                  <p className={adminStyles.statNumber}>
+                    {stats?.total_complaints || complaints.length}
+                  </p>
+                  <p className={adminStyles.statLabel}>إجمالي الشكاوى</p>
+                </div>
               </div>
-            ))}
-            {allComplaints.length === 0 && (
-              <p className="text-gray-500 text-center py-4">لا توجد شكاوى</p>
-            )}
+            </div>
+            
+            <div className={adminStyles.statCard}>
+              <div className={adminStyles.statInner}>
+                <div className={`${adminStyles.statIcon} bg-yellow-100`}>
+                  <Clock className="w-6 h-6 text-yellow-600" />
+                </div>
+                <div className={adminStyles.statContent}>
+                  <p className={adminStyles.statNumber}>
+                    {stats?.new_complaints || complaints.filter(c => ['جديدة', 'تحت المراجعة'].includes(c.status)).length}
+                  </p>
+                  <p className={adminStyles.statLabel}>قيد المعالجة</p>
+                </div>
+              </div>
+            </div>
+            
+            <div className={adminStyles.statCard}>
+              <div className={adminStyles.statInner}>
+                <div className={`${adminStyles.statIcon} bg-green-100`}>
+                  <CheckCircle className="w-6 h-6 text-green-600" />
+                </div>
+                <div className={adminStyles.statContent}>
+                  <p className={adminStyles.statNumber}>
+                    {stats?.resolved || complaints.filter(c => c.status === 'تم الحل').length}
+                  </p>
+                  <p className={adminStyles.statLabel}>تم الحل</p>
+                </div>
+              </div>
+            </div>
+            
+            <div className={adminStyles.statCard}>
+              <div className={adminStyles.statInner}>
+                <div className={`${adminStyles.statIcon} bg-red-100`}>
+                  <AlertCircle className="w-6 h-6 text-red-600" />
+                </div>
+                <div className={adminStyles.statContent}>
+                  <p className={adminStyles.statNumber}>{pendingEscalation.length}</p>
+                  <p className={adminStyles.statLabel}>تحتاج تصعيد</p>
+                </div>
+              </div>
+            </div>
           </div>
-        </div>
 
-        <div className={adminStyles.quickCard}>
-          <h3 className={adminStyles.quickTitle}>إحصائيات الأقسام</h3>
-          <div className={adminStyles.deptStats}>
-            {departments.map(dept =>{
-              const deptComplaints = allComplaints.filter(c => c.department === dept);
-              const percentage = allComplaints.length > 0 ? (deptComplaints.length / allComplaints.length) * 100 : 0;
-              return (
-                <div key={dept} className={adminStyles.deptItem}>
-                  <span className={adminStyles.deptName}>{dept}</span>
-                  <div className={adminStyles.deptProgress}>
-                    <span className={adminStyles.deptCount}>{deptComplaints.length}</span>
-                    <div className={adminStyles.progressBar}>
-                      <div 
-                        className={adminStyles.progressFill}
-                        style={{ width: `${percentage}%` }}
-                      ></div>
+          {/* Quick Actions */}
+          <div className={adminStyles.quickActionsGrid}>
+            <div className={adminStyles.quickCard}>
+              <h3 className={adminStyles.quickTitle}>الشكاوى الحديثة</h3>
+              <div className={adminStyles.recentList}>
+                {complaints.slice(0, 5).map(complaint => (
+                  <div key={complaint.id} className={adminStyles.recentItem}>
+                    <div className={adminStyles.recentInfo}>
+                      <p className={adminStyles.recentTitle}>
+                        {complaint.subject.length > 30 
+                          ? complaint.subject.substring(0, 30) + '...'
+                          : complaint.subject
+                        }
+                      </p>
+                      <p className={adminStyles.recentMeta}>{complaint.patient_name}</p>
+                    </div>
+                    <span className={`${adminStyles.statusBadge} ${getStatusColor(complaint.status)}`}>
+                      {complaint.status}
+                    </span>
+                  </div>
+                ))}
+                {complaints.length === 0 && (
+                  <p className="text-gray-500 text-center py-4">لا توجد شكاوى</p>
+                )}
+              </div>
+            </div>
+
+            <div className={adminStyles.quickCard}>
+              <h3 className={adminStyles.quickTitle}>إحصائيات الأقسام</h3>
+              <div className={adminStyles.deptStats}>
+                {departmentStats().map(dept => (
+                  <div key={dept.name} className={adminStyles.deptItem}>
+                    <span className={adminStyles.deptName}>{dept.name}</span>
+                    <div className={adminStyles.deptProgress}>
+                      <span className={adminStyles.deptCount}>{dept.count}</span>
+                      <div className={adminStyles.progressBar}>
+                        <div 
+                          className={adminStyles.progressFill}
+                          style={{ width: `${dept.percentage}%` }}
+                        ></div>
+                      </div>
                     </div>
                   </div>
+                ))}
+                {departments.length === 0 && (
+                  <p className="text-gray-500 text-center py-4">جاري تحميل الأقسام...</p>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Escalation Alert */}
+          {pendingEscalation.length > 0 && (
+            <div className={adminStyles.alertCard}>
+              <div className={adminStyles.alertContent}>
+                <AlertCircle className={adminStyles.alertIcon} />
+                <div className={adminStyles.alertText}>
+                  <h3 className={adminStyles.alertTitle}>تنبيه: شكاوى تحتاج تصعيد</h3>
+                  <p className={adminStyles.alertDesc}>
+                    يوجد {pendingEscalation.length} شكوى تجاوزت المهلة الزمنية وتحتاج للتصعيد
+                  </p>
                 </div>
-              );
-            })}
+                <button
+                  onClick={() => setActiveTab('escalation')}
+                  className={adminStyles.alertBtn}
+                >
+                  عرض التفاصيل
+                </button>
+              </div>
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+
+  return (
+    <div className={adminStyles.container}>
+      {/* Header */}
+      <div className={adminStyles.header}>
+        <div className={adminStyles.headerContent}>
+          <div className={adminStyles.headerInner}>
+            <div className={adminStyles.headerLeft}>
+              <Settings className={adminStyles.logo} />
+              <h1 className={adminStyles.title}>نظام الشكاوى - الإدارة</h1>
+            </div>
+            <div className={adminStyles.headerRight}>
+              {pendingEscalation.length > 0 && (
+                <div className={adminStyles.notification}>
+                  <Bell className={adminStyles.notificationIcon} />
+                  <span className={adminStyles.notificationText}>
+                    {pendingEscalation.length} شكوى تحتاج تصعيد
+                  </span>
+                </div>
+              )}
+              <span className={adminStyles.userName}>مرحباً، {currentUser.name}</span>
+              <button onClick={logout} className={adminStyles.logoutBtn}>
+                <LogOut className="w-5 h-5 ml-1" />
+                خروج
+              </button>
+            </div>
           </div>
         </div>
       </div>
 
-      {/* Escalation Alert */}
-     {pendingEscalation.length > 0 && (
-       <div className={adminStyles.alertCard}>
-         <div className={adminStyles.alertContent}>
-           <AlertCircle className={adminStyles.alertIcon} />
-           <div className={adminStyles.alertText}>
-             <h3 className={adminStyles.alertTitle}>تنبيه: شكاوى تحتاج تصعيد</h3>
-             <p className={adminStyles.alertDesc}>
-               يوجد {pendingEscalation.length} شكوى تجاوزت المهلة الزمنية وتحتاج للتصعيد
-             </p>
-           </div>
-           <button
-             onClick={() => setActiveTab('escalation')}
-             className={adminStyles.alertBtn}
-           >
-             عرض التفاصيل
-           </button>
-         </div>
-       </div>
-     )}
-   </div>
- );
+      {/* Navigation */}
+      <div className={adminStyles.nav}>
+        <div className={adminStyles.navContent}>
+          <nav className={adminStyles.navInner}>
+            {[
+              { key: 'dashboard', label: 'الرئيسية', icon: Home },
+              { key: 'complaints', label: 'إدارة الشكاوى', icon: FileText },
+              { key: 'staff', label: 'إدارة الموظفين', icon: Users },
+              { key: 'departments', label: 'إدارة الأقسام', icon: Settings },
+              { key: 'escalation', label: 'التصعيد', icon: AlertCircle },
+              { key: 'logs', label: 'سجل العمليات', icon: Clock }
+            ].map(tab => (
+              <button
+                key={tab.key}
+                onClick={() => setActiveTab(tab.key)}
+                className={`${adminStyles.navTab} ${
+                  activeTab === tab.key ? 'active' : 'inactive'
+                }`}
+              >
+                <tab.icon className="w-5 h-5 ml-2" />
+                {tab.label}
+                {tab.key === 'escalation' && pendingEscalation.length > 0 && (
+                  <span className={adminStyles.badge}>
+                    {pendingEscalation.length}
+                  </span>
+                )}
+              </button>
+            ))}
+          </nav>
+        </div>
+      </div>
 
- return (
-   <div className={adminStyles.container}>
-     {/* Header */}
-     <div className={adminStyles.header}>
-       <div className={adminStyles.headerContent}>
-         <div className={adminStyles.headerInner}>
-           <div className={adminStyles.headerLeft}>
-             <Settings className={adminStyles.logo} />
-             <h1 className={adminStyles.title}>نظام الشكاوى - الإدارة</h1>
-           </div>
-           <div className={adminStyles.headerRight}>
-             {pendingEscalation.length > 0 && (
-               <div className={adminStyles.notification}>
-                 <Bell className={adminStyles.notificationIcon} />
-                 <span className={adminStyles.notificationText}>
-                   {pendingEscalation.length} شكوى تحتاج تصعيد
-                 </span>
-               </div>
-             )}
-             <span className={adminStyles.userName}>مرحباً، {currentUser.name}</span>
-             <button onClick={logout} className={adminStyles.logoutBtn}>
-               <LogOut className="w-5 h-5 ml-1" />
-               خروج
-             </button>
-           </div>
-         </div>
-       </div>
-     </div>
-
-     {/* Navigation */}
-     <div className={adminStyles.nav}>
-       <div className={adminStyles.navContent}>
-         <nav className={adminStyles.navInner}>
-           {[
-             { key: 'dashboard', label: 'الرئيسية', icon: Home },
-             { key: 'complaints', label: 'إدارة الشكاوى', icon: FileText },
-             { key: 'staff', label: 'إدارة الموظفين', icon: Users },
-             { key: 'departments', label: 'إدارة الأقسام', icon: Settings },
-             { key: 'escalation', label: 'التصعيد', icon: AlertCircle },
-             { key: 'logs', label: 'سجل العمليات', icon: Clock }
-           ].map(tab => (
-             <button
-               key={tab.key}
-               onClick={() => setActiveTab(tab.key)}
-               className={`${adminStyles.navTab} ${
-                 activeTab === tab.key ? 'active' : 'inactive'
-               }`}
-             >
-               <tab.icon className="w-5 h-5 ml-2" />
-               {tab.label}
-               {tab.key === 'escalation' && pendingEscalation.length > 0 && (
-                 <span className={adminStyles.badge}>
-                   {pendingEscalation.length}
-                 </span>
-               )}
-             </button>
-           ))}
-         </nav>
-       </div>
-     </div>
-
-     {/* Content */}
-     <div className={adminStyles.content}>
-       {selectedComplaint ? (
-         <div className="mb-4">
-           <button
-             onClick={() => setSelectedComplaint(null)}
-             className="flex items-center text-blue-600 hover:text-blue-800 mb-4"
-           >
-             <ChevronRight className="w-5 h-5 ml-1" />
-             العودة للقائمة
-           </button>
-           {/* Complaint Details Component would go here */}
-         </div>
-       ) : (
-         <>
-           {activeTab === 'dashboard' && <Dashboard />}
-           {activeTab === 'complaints' && (
-             <ComplaintsManagement 
-               data={data} 
-               setData={setData} 
-               setSelectedComplaint={setSelectedComplaint}
-             />
-           )}
-           {activeTab === 'staff' && <StaffManagement data={data} setData={setData} />}
-           {activeTab === 'departments' && <DepartmentManagement data={data} setData={setData} />}
-           {activeTab === 'escalation' && (
-             <EscalationSettings 
-               data={data} 
-               setData={setData} 
-               pendingEscalation={pendingEscalation}
-             />
-           )}
-           {activeTab === 'logs' && <SystemLogs data={data} />}
-         </>
-       )}
-     </div>
-   </div>
- );
+      {/* Content */}
+      <div className={adminStyles.content}>
+        {activeTab === 'dashboard' && <Dashboard />}
+        {activeTab === 'complaints' && (
+          <ComplaintsManagement 
+            complaints={complaints}
+            onRefresh={fetchDashboardData}
+            setSelectedComplaint={setSelectedComplaint}
+          />
+        )}
+        {activeTab === 'staff' && <StaffManagement />}
+        {activeTab === 'departments' && <DepartmentManagement />}
+        {activeTab === 'escalation' && (
+          <EscalationSettings 
+            pendingEscalation={pendingEscalation}
+            complaints={complaints}
+            onRefresh={fetchDashboardData}
+          />
+        )}
+        {activeTab === 'logs' && <SystemLogs />}
+      </div>
+    </div>
+  );
 };
 
 export default AdminDashboard;

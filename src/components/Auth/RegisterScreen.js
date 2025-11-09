@@ -1,13 +1,17 @@
 import React, { useState } from 'react';
-import { Plus, ChevronRight } from 'lucide-react';
+import { Plus } from 'lucide-react';
+import { useAppContext } from '../../App';
+import { authService } from '../../services/api';
 
-const RegisterScreen = ({ data, setData, setCurrentView }) => {
-  const [step, setStep] = useState(1);
+const RegisterScreen = () => {
   const [formData, setFormData] = useState({
-    name: '', nationalId: '', phone: '', password: '', confirmPassword: '', otp: ''
+    name: '', nationalId: '', phone: '', password: '', confirmPassword: ''
   });
   const [errors, setErrors] = useState({});
-  const [generatedOTP, setGeneratedOTP] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [successMessage, setSuccessMessage] = useState('');
+
+  const { setCurrentView } = useAppContext();
 
   const registerStyles = {
     container: "min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4",
@@ -15,67 +19,140 @@ const RegisterScreen = ({ data, setData, setCurrentView }) => {
     header: "text-center mb-8",
     logo: "mx-auto w-16 h-16 bg-green-600 rounded-full flex items-center justify-center mb-4",
     title: "text-2xl font-bold text-gray-900",
-    progressBar: "flex justify-center mt-4",
-    progressStep: "w-8 h-8 rounded-full flex items-center justify-center",
-    progressLine: "w-12 h-1 mt-4",
     form: "space-y-4",
     inputGroup: "space-y-2",
     label: "block text-sm font-medium text-gray-700",
     input: "input-field",
     inputError: "input-field border-red-500",
     error: "text-red-500 text-xs mt-1",
-    button: "btn-primary",
-    buttonSecondary: "btn-secondary",
-    link: "text-blue-600 hover:text-blue-800 text-sm"
+    button: "btn-primary w-full",
+    buttonDisabled: "btn-primary w-full opacity-50 cursor-not-allowed",
+    buttonSuccess: "btn-success w-full",
+    link: "text-blue-600 hover:text-blue-800 text-sm",
+    success: "bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-lg text-sm mb-4",
+    apiError: "bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm mb-4"
   };
 
-  const validateStep1 = () => {
+  // التحقق من صحة البيانات
+  const validateForm = () => {
     const newErrors = {};
-    if (!formData.name.trim()) newErrors.name = 'الاسم مطلوب';
-    if (!formData.nationalId.trim()) newErrors.nationalId = 'رقم الهوية مطلوب';
-    if (!formData.phone.trim()) newErrors.phone = 'رقم الجوال مطلوب';
-    if (!formData.password) newErrors.password = 'كلمة المرور مطلوبة';
-    if (formData.password !== formData.confirmPassword) newErrors.confirmPassword = 'كلمات المرور غير متطابقة';
     
-    if (data.users.find(u => u.id === formData.nationalId)) {
-      newErrors.nationalId = 'رقم الهوية مسجل مسبقاً';
+    if (!formData.name.trim()) {
+      newErrors.name = 'الاسم مطلوب';
+    } else if (formData.name.trim().length < 2) {
+      newErrors.name = 'الاسم يجب أن يكون حرفين على الأقل';
+    }
+    
+    if (!formData.nationalId.trim()) {
+      newErrors.nationalId = 'رقم الهوية مطلوب';
+    } else if (formData.nationalId.length !== 10) {
+      newErrors.nationalId = 'رقم الهوية يجب أن يكون 10 أرقام';
+    } else if (!/^\d+$/.test(formData.nationalId)) {
+      newErrors.nationalId = 'رقم الهوية يجب أن يحتوي على أرقام فقط';
+    }
+    
+    if (!formData.phone.trim()) {
+      newErrors.phone = 'رقم الجوال مطلوب';
+    } else if (!/^05\d{8}$/.test(formData.phone)) {
+      newErrors.phone = 'رقم الجوال يجب أن يبدأ بـ 05 ويتكون من 10 أرقام';
+    }
+    
+    if (!formData.password) {
+      newErrors.password = 'كلمة المرور مطلوبة';
+    } else if (formData.password.length < 6) {
+      newErrors.password = 'كلمة المرور يجب أن تكون على الأقل 6 أحرف';
+    }
+    
+    if (formData.password !== formData.confirmPassword) {
+      newErrors.confirmPassword = 'كلمات المرور غير متطابقة';
     }
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
 
-  const sendOTP = () => {
-    if (validateStep1()) {
-      const otp = Math.floor(100000 + Math.random() * 900000).toString();
-      setGeneratedOTP(otp);
-      setStep(2);
-      alert(`تم إرسال رمز التحقق: ${otp}`);
+  const handleRegister = async (e) => {
+    e.preventDefault();
+    
+    if (!validateForm()) {
+      return;
+    }
+
+    setLoading(true);
+    setErrors({});
+    setSuccessMessage('');
+
+    try {
+      console.log('محاولة إنشاء حساب جديد...', {
+        name: formData.name,
+        nationalId: formData.nationalId,
+        phone: formData.phone
+      });
+
+      const result = await authService.register({
+        name: formData.name.trim(),
+        nationalId: formData.nationalId,
+        phone: formData.phone,
+        password: formData.password
+      });
+
+      if (result.success) {
+        console.log('تم إنشاء الحساب بنجاح:', result.data);
+        
+        setSuccessMessage('تم إنشاء حساب المريض بنجاح! يمكنك الآن تسجيل الدخول.');
+        
+        // إعادة تعيين النموذج
+        setFormData({
+          name: '', nationalId: '', phone: '', password: '', confirmPassword: ''
+        });
+        
+        // الانتقال لصفحة تسجيل الدخول بعد 3 ثوان
+        setTimeout(() => {
+          setCurrentView('login');
+        }, 3000);
+
+      } else {
+        console.log('فشل إنشاء الحساب:', result.error);
+        
+        // معالجة أخطاء محددة
+        if (result.error.includes('رقم الهوية مسجل مسبقاً') || 
+            result.error.includes('already exists')) {
+          setErrors({ nationalId: 'رقم الهوية مسجل مسبقاً' });
+        } else if (result.error.includes('Invalid national ID')) {
+          setErrors({ nationalId: 'رقم الهوية غير صحيح' });
+        } else if (result.error.includes('Invalid phone number')) {
+          setErrors({ phone: 'رقم الجوال غير صحيح' });
+        } else {
+          setErrors({ api: result.error });
+        }
+      }
+    } catch (error) {
+      console.error('خطأ في إنشاء الحساب:', error);
+      setErrors({ api: 'حدث خطأ غير متوقع، يرجى المحاولة مرة أخرى' });
+    } finally {
+      setLoading(false);
     }
   };
 
-  const verifyOTP = () => {
-    if (formData.otp === generatedOTP) {
-      const newUser = {
-        id: formData.nationalId,
-        name: formData.name,
-        phone: formData.phone,
-        password: formData.password,
-        role: 'patient',
-        verified: true,
-        createdAt: new Date().toISOString()
-      };
+  const resetForm = () => {
+    setFormData({
+      name: '', nationalId: '', phone: '', password: '', confirmPassword: ''
+    });
+    setErrors({});
+    setSuccessMessage('');
+  };
 
-      setData(prev => ({
-        ...prev,
-        users: [...prev.users, newUser]
-      }));
-
-      alert('تم إنشاء الحساب بنجاح!');
-      setCurrentView('login');
-    } else {
-      setErrors({ otp: 'رمز التحقق غير صحيح' });
-    }
+  // ملء بيانات تجريبية للاختبار
+  const fillTestData = () => {
+    setFormData({
+      name: 'محمد أحمد العلي',
+      nationalId: '1234567891',
+      phone: '0501234568',
+      password: '123456',
+      confirmPassword: '123456'
+    });
+    setErrors({});
+    setSuccessMessage('');
   };
 
   return (
@@ -85,112 +162,149 @@ const RegisterScreen = ({ data, setData, setCurrentView }) => {
           <div className={registerStyles.logo}>
             <Plus className="w-8 h-8 text-white" />
           </div>
-          <h1 className={registerStyles.title}>إنشاء حساب جديد</h1>
-          <div className={registerStyles.progressBar}>
-            <div className={`${registerStyles.progressStep} ${step >= 1 ? 'bg-blue-600 text-white' : 'bg-gray-300'}`}>1</div>
-            <div className={`${registerStyles.progressLine} ${step >= 2 ? 'bg-blue-600' : 'bg-gray-300'}`}></div>
-            <div className={`${registerStyles.progressStep} ${step >= 2 ? 'bg-blue-600 text-white' : 'bg-gray-300'}`}>2</div>
-          </div>
+          <h1 className={registerStyles.title}>إنشاء حساب مريض جديد</h1>
+          <p className="text-gray-600 mt-2">مستشفى </p>
         </div>
 
-        {step === 1 ? (
-          <div className={registerStyles.form}>
-            <div className={registerStyles.inputGroup}>
-              <label className={registerStyles.label}>الاسم الكامل</label>
-              <input
-                type="text"
-                value={formData.name}
-                onChange={(e) => setFormData({...formData, name: e.target.value})}
-                className={errors.name ? registerStyles.inputError : registerStyles.input}
-              />
-              {errors.name && <p className={registerStyles.error}>{errors.name}</p>}
-            </div>
-
-            <div className={registerStyles.inputGroup}>
-              <label className={registerStyles.label}>رقم الهوية الوطنية</label>
-              <input
-                type="text"
-                value={formData.nationalId}
-                onChange={(e) => setFormData({...formData, nationalId: e.target.value})}
-                className={errors.nationalId ? registerStyles.inputError : registerStyles.input}
-              />
-              {errors.nationalId && <p className={registerStyles.error}>{errors.nationalId}</p>}
-            </div>
-
-            <div className={registerStyles.inputGroup}>
-              <label className={registerStyles.label}>رقم الجوال</label>
-              <input
-                type="tel"
-                value={formData.phone}
-                onChange={(e) => setFormData({...formData, phone: e.target.value})}
-                className={errors.phone ? registerStyles.inputError : registerStyles.input}
-              />
-              {errors.phone && <p className={registerStyles.error}>{errors.phone}</p>}
-            </div>
-
-            <div className={registerStyles.inputGroup}>
-              <label className={registerStyles.label}>كلمة المرور</label>
-              <input
-                type="password"
-                value={formData.password}
-                onChange={(e) => setFormData({...formData, password: e.target.value})}
-                className={errors.password ? registerStyles.inputError : registerStyles.input}
-              />
-              {errors.password && <p className={registerStyles.error}>{errors.password}</p>}
-            </div>
-
-            <div className={registerStyles.inputGroup}>
-              <label className={registerStyles.label}>تأكيد كلمة المرور</label>
-              <input
-                type="password"
-                value={formData.confirmPassword}
-                onChange={(e) => setFormData({...formData, confirmPassword: e.target.value})}
-                className={errors.confirmPassword ? registerStyles.inputError : registerStyles.input}
-              />
-              {errors.confirmPassword && <p className={registerStyles.error}>{errors.confirmPassword}</p>}
-            </div>
-
-            <button onClick={sendOTP} className={`${registerStyles.button} w-full`}>
-              إرسال رمز التحقق
-            </button>
-          </div>
-        ) : (
-          <div className={registerStyles.form}>
-            <div className="text-center">
-              <p className="text-gray-600 mb-4">تم إرسال رمز التحقق إلى رقم الجوال</p>
-              <p className="font-bold text-lg">{formData.phone}</p>
-            </div>
-
-            <div className={registerStyles.inputGroup}>
-              <label className={registerStyles.label}>رمز التحقق</label>
-              <input
-                type="text"
-                value={formData.otp}
-                onChange={(e) => setFormData({...formData, otp: e.target.value})}
-                className={`${errors.otp ? registerStyles.inputError : registerStyles.input} text-center text-2xl tracking-widest`}
-                maxLength="6"
-                placeholder="000000"
-              />
-              {errors.otp && <p className={registerStyles.error}>{errors.otp}</p>}
-            </div>
-
-            <button onClick={verifyOTP} className={`btn-success w-full`}>
-              تأكيد وإنشاء الحساب
-            </button>
-
-            <button onClick={() => setStep(1)} className={`${registerStyles.buttonSecondary} w-full`}>
-              العودة للخطوة السابقة
-            </button>
+        {successMessage && (
+          <div className={registerStyles.success}>
+            {successMessage}
           </div>
         )}
 
-        <div className="mt-6 text-center">
+        {errors.api && (
+          <div className={registerStyles.apiError}>
+            {errors.api}
+          </div>
+        )}
+
+        <form onSubmit={handleRegister} className={registerStyles.form}>
+          <div className={registerStyles.inputGroup}>
+            <label className={registerStyles.label}>الاسم الكامل *</label>
+            <input
+              type="text"
+              value={formData.name}
+              onChange={(e) => setFormData({...formData, name: e.target.value})}
+              className={errors.name ? registerStyles.inputError : registerStyles.input}
+              placeholder="أدخل اسمك الكامل"
+              maxLength="100"
+              disabled={loading}
+            />
+            {errors.name && <p className={registerStyles.error}>{errors.name}</p>}
+          </div>
+
+          <div className={registerStyles.inputGroup}>
+            <label className={registerStyles.label}>رقم الهوية الوطنية *</label>
+            <input
+              type="text"
+              value={formData.nationalId}
+              onChange={(e) => setFormData({...formData, nationalId: e.target.value.replace(/\D/g, '')})}
+              className={errors.nationalId ? registerStyles.inputError : registerStyles.input}
+              placeholder="1234567890"
+              maxLength="10"
+              disabled={loading}
+            />
+            {errors.nationalId && <p className={registerStyles.error}>{errors.nationalId}</p>}
+          </div>
+
+          <div className={registerStyles.inputGroup}>
+            <label className={registerStyles.label}>رقم الجوال *</label>
+            <input
+              type="tel"
+              value={formData.phone}
+              onChange={(e) => setFormData({...formData, phone: e.target.value.replace(/\D/g, '')})}
+              className={errors.phone ? registerStyles.inputError : registerStyles.input}
+              placeholder="0501234567"
+              maxLength="10"
+              disabled={loading}
+            />
+            {errors.phone && <p className={registerStyles.error}>{errors.phone}</p>}
+          </div>
+
+          <div className={registerStyles.inputGroup}>
+            <label className={registerStyles.label}>كلمة المرور *</label>
+            <input
+              type="password"
+              value={formData.password}
+              onChange={(e) => setFormData({...formData, password: e.target.value})}
+              className={errors.password ? registerStyles.inputError : registerStyles.input}
+              placeholder="اختر كلمة مرور قوية"
+              minLength="6"
+              disabled={loading}
+            />
+            {errors.password && <p className={registerStyles.error}>{errors.password}</p>}
+          </div>
+
+          <div className={registerStyles.inputGroup}>
+            <label className={registerStyles.label}>تأكيد كلمة المرور *</label>
+            <input
+              type="password"
+              value={formData.confirmPassword}
+              onChange={(e) => setFormData({...formData, confirmPassword: e.target.value})}
+              className={errors.confirmPassword ? registerStyles.inputError : registerStyles.input}
+              placeholder="أعد كتابة كلمة المرور"
+              disabled={loading}
+            />
+            {errors.confirmPassword && <p className={registerStyles.error}>{errors.confirmPassword}</p>}
+          </div>
+
           <button
-            onClick={() => setCurrentView('login')}
-            className={registerStyles.link}
+            type="submit"
+            disabled={loading || successMessage}
+            className={loading || successMessage ? registerStyles.buttonDisabled : registerStyles.button}
           >
-            العودة لتسجيل الدخول
+            {loading ? 'جاري إنشاء الحساب...' : successMessage ? 'تم الإنشاء بنجاح!' : 'إنشاء حساب المريض'}
           </button>
+        </form>
+
+        <div className="mt-6 space-y-3">
+          <div className="text-center">
+            <button
+              onClick={() => setCurrentView('login')}
+              className={registerStyles.link}
+              disabled={loading}
+            >
+              العودة لتسجيل الدخول
+            </button>
+          </div>
+
+          {/* أزرار إضافية */}
+          <div className="flex justify-center space-x-4">
+            <button
+              onClick={fillTestData}
+              className="text-blue-600 hover:text-blue-800 text-xs"
+              disabled={loading}
+            >
+              تعبئة بيانات تجريبية
+            </button>
+            
+            {(Object.keys(errors).length > 0 || successMessage) && (
+              <button
+                onClick={resetForm}
+                className="text-gray-600 hover:text-gray-800 text-xs"
+                disabled={loading}
+              >
+                مسح النموذج
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* معلومات إضافية */}
+        <div className="mt-4 text-xs text-gray-500 text-center space-y-1">
+          <p>بإنشاء حساب، فإنك توافق على شروط الخدمة وسياسة الخصوصية</p>
+          <p>سيتم التحقق من هويتك قبل تفعيل الحساب</p>
+          <p>هذا النظام مخصص للمرضى فقط</p>
+        </div>
+
+        {/* مؤشر الاتصال */}
+        <div className="mt-4 text-center">
+          <div className="flex items-center justify-center space-x-2">
+            <div className={`w-2 h-2 rounded-full ${navigator.onLine ? 'bg-green-500' : 'bg-red-500'}`}></div>
+            <span className="text-xs text-gray-500">
+              {navigator.onLine ? 'متصل بالخادم' : 'غير متصل بالخادم'}
+            </span>
+          </div>
         </div>
       </div>
     </div>

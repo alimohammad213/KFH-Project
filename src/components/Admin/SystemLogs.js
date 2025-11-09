@@ -1,15 +1,22 @@
-import React, { useState, useMemo } from 'react';
-import { Clock, User, FileText, Filter, Download, Search } from 'lucide-react';
-import { formatDateTime } from '../../utils/helpers';
+import React, { useState, useMemo, useEffect } from 'react';
+import { Clock, User, FileText, Filter, Download, Search, RefreshCw } from 'lucide-react';
+import { complaintsService } from '../../services/api';
+import { useAppContext } from '../../App';
 
-const SystemLogs = ({ data }) => {
+const SystemLogs = () => {
   const [filter, setFilter] = useState('all');
   const [searchTerm, setSearchTerm] = useState('');
   const [dateFilter, setDateFilter] = useState('today');
+  const [complaints, setComplaints] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  const { handleAppError } = useAppContext();
 
   const logsStyles = {
     container: "fade-in",
-    title: "text-xl font-bold mb-6",
+    header: "flex justify-between items-center mb-6",
+    title: "text-xl font-bold",
+    refreshBtn: "flex items-center text-blue-600 hover:text-blue-800 text-sm",
     filtersCard: "card mb-6",
     filtersGrid: "grid grid-cols-1 md:grid-cols-4 gap-4",
     filterSelect: "input-field",
@@ -39,65 +46,110 @@ const SystemLogs = ({ data }) => {
     actionUpdate: "bg-blue-100 text-blue-800",
     actionDelete: "bg-red-100 text-red-800",
     actionEscalate: "bg-orange-100 text-orange-800",
-    actionReassign: "bg-purple-100 text-purple-800"
+    actionReassign: "bg-purple-100 text-purple-800",
+    loadingSpinner: "flex items-center justify-center py-8",
+    spinner: "animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"
   };
 
-  // Generate logs from data
+  useEffect(() => {
+    fetchData();
+  }, []);
+
+  const fetchData = async () => {
+    try {
+      setLoading(true);
+      const result = await complaintsService.getComplaints();
+      
+      if (result.success) {
+        setComplaints(result.data.complaints || []);
+      } else {
+        handleAppError(result.error);
+      }
+    } catch (error) {
+      console.error('خطأ في جلب البيانات:', error);
+      handleAppError('حدث خطأ في جلب بيانات السجل');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Generate logs from complaints data
   const logs = useMemo(() => {
     const allLogs = [];
     
     // Complaint creation logs
-    data.complaints.forEach(c => {
+    complaints.forEach(c => {
       allLogs.push({
         id: c.id + '_created',
         action: 'إنشاء شكوى',
         type: 'create',
-        user: c.patientName,
+        user: c.patient_name,
         userType: 'مريض',
         target: c.subject,
-        details: `تم إنشاء شكوى جديدة في قسم ${c.department}`,
-        timestamp: c.createdAt
+        details: `تم إنشاء شكوى جديدة في قسم ${c.department_name}`,
+        timestamp: c.created_at
       });
+
+      // Status update logs (simulate based on status)
+      if (c.status !== 'جديدة') {
+        allLogs.push({
+          id: c.id + '_status_update',
+          action: 'تحديث حالة',
+          type: c.status === 'متصعدة' ? 'escalate' : 
+                c.assigned_to_name ? 'reassign' : 'update',
+          user: c.assigned_to_name || 'النظام',
+          userType: c.assigned_to_name ? 'موظف' : 'نظام',
+          target: `${c.subject} - ${c.status}`,
+          details: `تم تحديث حالة الشكوى إلى: ${c.status}`,
+          timestamp: c.updated_at || c.created_at
+        });
+      }
+
+      // Assignment logs
+      if (c.assigned_to_name) {
+        allLogs.push({
+          id: c.id + '_assigned',
+          action: 'تعيين شكوى',
+          type: 'reassign',
+          user: 'النظام',
+          userType: 'نظام',
+          target: `${c.subject} - ${c.assigned_to_name}`,
+          details: `تم تعيين الشكوى للموظف: ${c.assigned_to_name}`,
+          timestamp: c.created_at
+        });
+      }
     });
 
-    // Timeline logs
-    data.complaints.forEach(c => {
-      c.timeline.forEach((t, index) => {
-        if (index > 0) { // Skip initial creation
-          allLogs.push({
-            id: c.id + '_timeline_' + index,
-            action: 'تحديث حالة',
-            type: t.status === 'متصعدة' ? 'escalate' : 
-                  t.status === 'إعادة تعيين' ? 'reassign' : 'update',
-            user: t.updatedBy || 'النظام',
-            userType: t.updatedBy === 'النظام' ? 'نظام' : 'موظف',
-            target: `${c.subject} - ${t.status}`,
-            details: t.note,
-            timestamp: t.timestamp
-          });
-        }
-      });
+    // System activity logs (simulated)
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    
+    // Login logs (simulated)
+    allLogs.push({
+      id: 'login_' + Date.now(),
+      action: 'تسجيل دخول',
+      type: 'update',
+      user: 'المدير',
+      userType: 'إدارة',
+      target: 'النظام',
+      details: 'تم تسجيل الدخول للوحة الإدارة',
+      timestamp: today.toISOString()
     });
 
-    // Staff creation logs (simulated)
-    data.staff.forEach((s, index) => {
-      const createdDate = new Date();
-      createdDate.setDate(createdDate.getDate() - (data.staff.length - index));
-      
-      allLogs.push({
-        id: s.id + '_staff_created',
-        action: 'إضافة موظف',
-        type: 'create',
-        user: 'المدير',
-        userType: 'إدارة',
-        target: s.name,
-        details: `تم إضافة موظف جديد في قسم ${s.department}`,
-        timestamp: createdDate.toISOString()
-      });
+    // Staff management logs (simulated)
+    allLogs.push({
+      id: 'staff_activity_' + Date.now(),
+      action: 'إدارة الموظفين',
+      type: 'create',
+      user: 'المدير',
+      userType: 'إدارة',
+      target: 'نظام الموظفين',
+      details: 'تم الوصول لقسم إدارة الموظفين',
+      timestamp: new Date(today.getTime() - 3600000).toISOString()
     });
 
     return allLogs.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
-  }, [data]);
+  }, [complaints]);
 
   // Filter logs
   const filteredLogs = useMemo(() => {
@@ -110,10 +162,12 @@ const SystemLogs = ({ data }) => {
 
     // Filter by search term
     if (searchTerm) {
+      const searchLower = searchTerm.toLowerCase();
       filtered = filtered.filter(log => 
-        log.action.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        log.target.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        log.user.toLowerCase().includes(searchTerm.toLowerCase())
+        log.action.toLowerCase().includes(searchLower) ||
+        log.target.toLowerCase().includes(searchLower) ||
+        log.user.toLowerCase().includes(searchLower) ||
+        log.details.toLowerCase().includes(searchLower)
       );
     }
 
@@ -156,11 +210,21 @@ const SystemLogs = ({ data }) => {
       ].map(field => `"${field}"`).join(','))
     ].join('\n');
 
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
     link.href = URL.createObjectURL(blob);
     link.download = `system_logs_${new Date().toISOString().split('T')[0]}.csv`;
     link.click();
+  };
+
+  const formatDateTime = (dateString) => {
+    return new Date(dateString).toLocaleString('ar-SA', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
   };
 
   // Statistics
@@ -175,9 +239,29 @@ const SystemLogs = ({ data }) => {
     updates: logs.filter(log => log.action.includes('تحديث')).length
   };
 
+  if (loading) {
+    return (
+      <div className={logsStyles.container}>
+        <div className={logsStyles.loadingSpinner}>
+          <div className={logsStyles.spinner}></div>
+          <span className="mr-2">جاري تحميل سجل العمليات...</span>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className={logsStyles.container}>
-      <h2 className={logsStyles.title}>سجل العمليات</h2>
+      <div className={logsStyles.header}>
+        <h2 className={logsStyles.title}>سجل العمليات</h2>
+        <button 
+          onClick={fetchData}
+          className={logsStyles.refreshBtn}
+        >
+          <RefreshCw className="w-4 h-4 ml-1" />
+          تحديث
+        </button>
+      </div>
 
       {/* Statistics */}
       <div className={logsStyles.statsGrid}>
@@ -300,6 +384,7 @@ const SystemLogs = ({ data }) => {
           <li>• السجل يتضمن: إنشاء الشكاوى، تحديث الحالات، التصعيد، وإدارة الموظفين</li>
           <li>• يمكن تصدير السجل بصيغة CSV للمراجعة والتحليل</li>
           <li>• يتم الاحتفاظ بالسجل لمدة سنة كاملة لأغراض التدقيق</li>
+          <li>• يمكن البحث والفلترة في السجل حسب التاريخ ونوع العملية</li>
         </ul>
       </div>
     </div>
